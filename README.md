@@ -1,9 +1,9 @@
 # Agent Team Workflow
 
-A workflow for autonomously implementing features overnight using Claude Code Agent Teams. A structured spec goes in, a GitLab Merge Request comes out.
+A workflow for autonomously implementing features using Claude Code Agent Teams. A structured spec goes in, the team implements it via TDD, a GitLab Merge Request comes out.
 
 ```
-[Spec Doc] → [Pre-flight] → [Agent Team] → [MR] → [Morning Review]
+[Spec Doc] → [Pre-flight] → [Agent Team] → [MR] → [Review]
 ```
 
 The agent team consists of three roles: a **Lead** that coordinates, a **Coder** that implements via TDD, and a **Reviewer** that gates tests before implementation begins.
@@ -12,9 +12,7 @@ The agent team consists of three roles: a **Lead** that coordinates, a **Coder**
 
 ## Prerequisites
 
-- macOS
 - Claude Code v2.1.32 or later (`claude --version`)
-- Claude Pro account with OAuth token (optional — falls back to default auth)
 - GitLab hosted repository (for MR creation)
 - Python 3.12+
 
@@ -34,21 +32,15 @@ This will:
 - Symlink `rules/` into `~/.claude/rules/agent-workflow` (live — edits here take effect immediately)
 - Register agent team hooks in `~/.claude/settings.json`
 
-Then add the scripts to your PATH in `~/.zshrc`:
+**Before running, be aware:**
+- `settings.json` will be read, modified, and rewritten. Back it up first if you have custom configuration you care about: `cp ~/.claude/settings.json ~/.claude/settings.json.bak`
+- The script will not touch any other files in `~/.claude/` and will not overwrite existing hook entries or settings keys
+
+Then add the scripts to your PATH in your shell profile:
 
 ```bash
 export PATH="/path/to/agent-team-workflow/scripts:$PATH"
 ```
-
-### OAuth token (optional)
-
-To use a specific Claude account for overnight runs, store your OAuth token in macOS Keychain:
-
-```bash
-security add-generic-password -s "claude-token-1" -a "claude" -w "<your-token>"
-```
-
-If no token is found, the workflow falls back to your default Claude Code authentication.
 
 ---
 
@@ -58,7 +50,7 @@ If no token is found, the workflow falls back to your default Claude Code authen
 
 Create a feature spec in your target project at `docs/specs/<feature-slug>.md`. See [Spec Format](#spec-format) below.
 
-### 2. Run manually (recommended before scheduling)
+### 2. Run
 
 From within your target project directory:
 
@@ -66,18 +58,7 @@ From within your target project directory:
 run-agent-team.py docs/specs/my-feature.md
 ```
 
-This runs pre-flight checks, invokes the agent team, and creates a GitLab MR when complete.
-
-### 3. Schedule overnight (cron)
-
-```bash
-crontab -e
-```
-
-```
-# Run at 11pm every weekday
-0 23 * * 1-5 cd /path/to/project && run-agent-team.py docs/specs/my-feature.md >> /path/to/project/logs/agent-runs/cron.log 2>&1
-```
+This runs pre-flight checks, invokes the agent team, and creates a GitLab MR when complete. You can watch it run or kick it off and check back — the full log is written to `logs/agent-runs/` in your target project.
 
 ---
 
@@ -144,10 +125,9 @@ agent-team-workflow/
 
 ---
 
-## Morning Review Checklist
+## Review Checklist
 
 ```
-[ ] Check GitLab for new MR
 [ ] Read docs/specs/<slug>-decisions.md if present
 [ ] Read docs/specs/<slug>-review-notes.md if present
 [ ] git diff main -- review the diff
@@ -169,6 +149,6 @@ This repo is the source of truth. To update the global installation after making
 
 ---
 
-## Open Questions / Future Work
+## Future Work
 
 See the [Open Questions section](agent-workflow.md#open-questions--future-improvements) in the workflow design doc.
