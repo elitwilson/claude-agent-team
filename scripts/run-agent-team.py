@@ -36,7 +36,13 @@ def run_agent(prompt: str, log_file: Path, max_turns: int = 200) -> int:
     env = {**os.environ, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}
     with log_file.open("a") as log:
         result = subprocess.run(
-            ["claude", "--print", "--max-turns", str(max_turns), prompt],
+            [
+                "claude", "--print",
+                "--max-turns", str(max_turns),
+                "--dangerously-skip-permissions",  # TODO: replace with pre-approved permissions before production use
+                "--teammate-mode", "in-process",
+                prompt,
+            ],
             stdout=log, stderr=log, env=env
         )
     return result.returncode

@@ -443,6 +443,7 @@ Not blockers for prototyping, but things to nail down before running this on any
 ## Open Questions / Future Improvements
 
 - [ ] Hooks: implement `TaskCompleted` hook to enforce Reviewer gate as a hard quality gate rather than prompt-only instruction
+- [ ] Permissions: replace `--dangerously-skip-permissions` with a curated set of pre-approved operations (file writes, git commands, test execution). See Claude Code permission settings. Reduces blast radius for unattended runs.
 - [ ] Rate limit rotation: script automatic token switching between two Pro accounts mid-run
 - [ ] Notification: post-run ping (email or Slack) with MR link and run summary
 - [ ] Health check script: parse log for errors, flag to reviewer before morning
