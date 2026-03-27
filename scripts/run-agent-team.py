@@ -70,8 +70,8 @@ def create_mr(branch_name: str, spec_file: Path, base_branch: str, log_file: Pat
         f"**Run date:** {run_date}",
         f"**Agent exit code:** `{exit_code}`",
         "",
-        f"Review `docs/specs/{feature_slug}-decisions.md` for assumptions made during the run.",
-        f"Review `docs/specs/{feature_slug}-review-notes.md` for Reviewer gate outcomes.",
+        f"Review `docs/specs/{feature_slug}/decisions.md` for assumptions made during the run.",
+        f"Review `docs/specs/{feature_slug}/review-notes.md` for Reviewer gate outcomes.",
         "",
         f"Log: `{log_file}`",
     ])
