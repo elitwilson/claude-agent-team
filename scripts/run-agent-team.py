@@ -82,14 +82,22 @@ def create_mr(branch_name: str, spec_file: Path, base_branch: str, log_file: Pat
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: run-agent-team.py <spec-file>", file=sys.stderr)
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Run an agent team against a feature spec.")
+    parser.add_argument("spec_file", type=Path, help="Path to the spec file")
+    parser.add_argument("--team", default="feature-dev", help="Team type to use (default: feature-dev)")
+    args = parser.parse_args()
 
-    spec_file = Path(sys.argv[1])
+    spec_file = args.spec_file
+    team = args.team
     base_branch = os.environ.get("BASE_BRANCH", "main")
     feature_slug = spec_file.stem
     log_file = Path(f"logs/agent-runs/{feature_slug}-{date.today().strftime('%Y%m%d')}.log")
+
+    team_prompt = WORKFLOW_DIR / "prompts" / "teams" / f"{team}.md"
+    if not team_prompt.exists():
+        print(f"ERROR: No prompt template found for team '{team}' at {team_prompt}", file=sys.stderr)
+        sys.exit(1)
 
     token = load_oauth_token()
     if token:
@@ -104,7 +112,7 @@ def main() -> None:
         sys.exit(1)
 
     prompt = build_prompt(
-        WORKFLOW_DIR / "prompts" / "orchestration.md",
+        team_prompt,
         {
             "SPEC_FILE": str(spec_file),
             "FEATURE_SLUG": feature_slug,
