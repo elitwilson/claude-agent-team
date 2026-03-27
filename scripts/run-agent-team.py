@@ -31,20 +31,25 @@ def run_preflight(spec_file: Path, base_branch: str) -> str:
     return Path("/tmp/current-agent-branch").read_text().strip()
 
 
-def run_agent(prompt: str, log_file: Path, max_turns: int = 200) -> int:
+def run_agent(prompt: str, log_file: Path, headless: bool = False, max_turns: int = 200) -> int:
     log_file.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}
-    with log_file.open("a") as log:
-        result = subprocess.run(
-            [
-                "claude", "--print",
-                "--max-turns", str(max_turns),
-                "--dangerously-skip-permissions",  # TODO: replace with pre-approved permissions before production use
-                "--teammate-mode", "in-process",
-                prompt,
-            ],
-            stdout=log, stderr=log, env=env
-        )
+    cmd = [
+        "claude",
+        "--max-turns", str(max_turns),
+        "--dangerously-skip-permissions",  # TODO: replace with pre-approved permissions before production use
+        "--teammate-mode", "in-process",
+        prompt,
+    ]
+    if headless:
+        cmd.insert(1, "--print")
+        with log_file.open("a") as log:
+            result = subprocess.run(cmd, stdout=log, stderr=log, env=env)
+    else:
+        tee = subprocess.Popen(["tee", "-a", str(log_file)], stdin=subprocess.PIPE)
+        result = subprocess.run(cmd, stdout=tee.stdin, env=env)
+        tee.stdin.close()
+        tee.wait()
     return result.returncode
 
 
@@ -86,10 +91,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run an agent team against a feature spec.")
     parser.add_argument("spec_file", type=Path, help="Path to the spec file")
     parser.add_argument("--team", default="feature-dev", help="Team type to use (default: feature-dev)")
+    parser.add_argument("--headless", action="store_true", help="Run without interactive output, logging only (for cron/overnight use)")
     args = parser.parse_args()
 
     spec_file = args.spec_file
     team = args.team
+    headless = args.headless
     base_branch = os.environ.get("BASE_BRANCH", "main")
     feature_slug = spec_file.stem
     log_file = Path(f"logs/agent-runs/{feature_slug}-{date.today().strftime('%Y%m%d')}.log")
@@ -120,7 +127,7 @@ def main() -> None:
         }
     )
 
-    exit_code = run_agent(prompt, log_file)
+    exit_code = run_agent(prompt, log_file, headless=headless)
     print(f"Agent run complete. Branch: {branch_name}, Log: {log_file}")
 
     if exit_code != 0:
