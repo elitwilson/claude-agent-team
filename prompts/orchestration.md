@@ -23,6 +23,7 @@ Spawn two teammates using natural language:
 - The full contents of reviewer.md
 - The path to the feature spec: ${SPEC_FILE}
 - That review outcomes go to docs/specs/${FEATURE_SLUG}-review-notes.md regardless of result
+- That they should immediately read the spec and prepare their expected test case list for all tasks — do not wait for the Coder to signal
 
 ## Task structure
 
@@ -39,7 +40,7 @@ The dependency chain enforces the Reviewer gate structurally — Coder cannot be
 For each feature task:
 
 1. Coder writes failing tests (RED), marks test task complete, messages Reviewer
-2. Reviewer reads spec and failing tests independently — one pass, critical issues only
+2. Reviewer compares Coder's tests against their pre-formed expected list — one pass, critical issues only
 3. Reviewer writes outcome to docs/specs/${FEATURE_SLUG}-review-notes.md, marks review task complete, messages Coder
 4. Coder addresses any flagged issues (one fix cycle), implements until green, refactors if warranted
 5. Coder commits, marks implementation task complete

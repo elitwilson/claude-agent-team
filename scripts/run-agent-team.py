@@ -48,17 +48,22 @@ def run_agent(prompt: str, log_file: Path, max_turns: int = 200) -> int:
     return result.returncode
 
 
-def create_mr(branch_name: str, spec_file: Path, base_branch: str, log_file: Path) -> None:
+def create_mr(branch_name: str, spec_file: Path, base_branch: str, log_file: Path, exit_code: int = 0) -> None:
     feature_slug = spec_file.stem
     spec_title = spec_file.read_text().splitlines()[0].lstrip("# ")
     run_date = date.today().isoformat()
 
+    failed = exit_code != 0
+    status_banner = f"\n> **WARNING: Agent exited with code {exit_code}. Run may be incomplete. Review log before merging.**\n" if failed else ""
+    title_prefix = "INCOMPLETE: " if failed else ""
+
     description = "\n".join([
-        "Automated implementation by Claude Code Agent Teams.",
+        f"Automated implementation by Claude Code Agent Teams.{status_banner}",
         "",
         f"**Spec:** `{spec_file}`",
         f"**Branch:** `{branch_name}`",
         f"**Run date:** {run_date}",
+        f"**Agent exit code:** `{exit_code}`",
         "",
         f"Review `docs/specs/{feature_slug}-decisions.md` for assumptions made during the run.",
         f"Review `docs/specs/{feature_slug}-review-notes.md` for Reviewer gate outcomes.",
@@ -70,7 +75,7 @@ def create_mr(branch_name: str, spec_file: Path, base_branch: str, log_file: Pat
         "git", "push", "origin", branch_name,
         "-o", "merge_request.create",
         "-o", f"merge_request.target={base_branch}",
-        "-o", f"merge_request.title=feat: {spec_title} (agent run {run_date})",
+        "-o", f"merge_request.title={title_prefix}feat: {spec_title} (agent run {run_date})",
         "-o", f"merge_request.description={description}",
         "-o", "merge_request.remove_source_branch",
     ], check=True)
@@ -111,9 +116,9 @@ def main() -> None:
     print(f"Agent run complete. Branch: {branch_name}, Log: {log_file}")
 
     if exit_code != 0:
-        print(f"WARNING: Agent exited with code {exit_code}. Review log before creating MR.")
+        print(f"WARNING: Agent exited with code {exit_code}. Run may be incomplete.")
 
-    create_mr(branch_name, spec_file, base_branch, log_file)
+    create_mr(branch_name, spec_file, base_branch, log_file, exit_code)
     print(f"MR created for branch: {branch_name}")
 
 
