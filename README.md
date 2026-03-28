@@ -58,20 +58,32 @@ From within your target project directory:
 run-agent-team.py docs/specs/my-feature.md
 ```
 
-This runs pre-flight checks, invokes the agent team, and creates a GitLab MR when complete. You can watch it run or kick it off and check back — the full log is written to `logs/agent-runs/` in your target project.
+This runs pre-flight checks, invokes the agent team interactively, and creates a GitLab MR when complete. The full log is written to `logs/agent-runs/` in your target project.
+
+**Flags:**
+
+```bash
+# Select a team type (default: feature-dev)
+run-agent-team.py docs/specs/my-feature.md --team feature-dev
+
+# Run headless — no interactive output, log only. For cron/overnight use.
+run-agent-team.py docs/specs/my-feature.md --headless
+```
 
 ---
 
 ## Spec Format
 
-> Full spec format design is a work in progress. At minimum, a spec must include:
+Copy `docs/spec-template.md` as your starting point. A spec must include:
 
 - A title (`# Feature Name`) as the first line — used as the MR title
 - A feature summary
 - Requirements
-- Technical design / architecture notes
+- Scope (in and out)
+- Technical approach / architecture notes
+- Success criteria
 - Discrete, dependency-ordered tasks
-- Acceptance criteria / definition of done
+- Considerations (edge cases, gotchas)
 
 The Lead agent reads the spec and decomposes it into tasks for the team. The more explicit the task breakdown in the spec, the more reliably the Lead decomposes it.
 
@@ -89,14 +101,18 @@ agent-team-workflow/
 │   └── run-agent-team.py       # Main entry point — invokes the full pipeline
 │
 ├── prompts/
-│   └── orchestration.md        # Lead agent initialization prompt (template)
+│   └── teams/
+│       └── feature-dev.md      # Lead agent initialization prompt for feature-dev team
 │
 ├── docs/
 │   ├── agent-roles.md          # Index of role definitions
+│   ├── spec-template.md        # Spec template — copy this when writing a new spec
+│   ├── specs/                  # Feature specs (one per feature)
 │   └── roles/
-│       ├── lead.md             # Lead: coordinates, never writes code
-│       ├── coder.md            # Coder: TDD implementation
-│       └── reviewer.md         # Reviewer: test review gate, one pass per task
+│       └── feature-dev/        # Role definitions for the feature-dev team
+│           ├── lead.md         # Lead: coordinates, never writes code
+│           ├── coder.md        # Coder: TDD implementation
+│           └── reviewer.md     # Reviewer: test review gate, one pass per task
 │
 ├── hooks/                      # Claude Code agent team hooks (stubs — future enforcement)
 │   ├── task-completed.sh
@@ -119,8 +135,8 @@ agent-team-workflow/
 
 | File | Purpose |
 |------|---------|
-| `docs/specs/<slug>-decisions.md` | Ambiguities and assumptions the Lead made during the run |
-| `docs/specs/<slug>-review-notes.md` | Reviewer gate outcomes per task |
+| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions the Lead made during the run |
+| `docs/specs/<slug>/review-notes.md` | Reviewer gate outcomes per task |
 | `logs/agent-runs/<slug>-<date>.log` | Full terminal log of the agent run |
 
 ---
@@ -128,8 +144,8 @@ agent-team-workflow/
 ## Review Checklist
 
 ```
-[ ] Read docs/specs/<slug>-decisions.md if present
-[ ] Read docs/specs/<slug>-review-notes.md if present
+[ ] Read docs/specs/<slug>/decisions.md if present
+[ ] Read docs/specs/<slug>/review-notes.md if present
 [ ] git diff main -- review the diff
 [ ] Run the test suite
 [ ] Manually test against acceptance criteria

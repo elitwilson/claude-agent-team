@@ -1,5 +1,7 @@
 # Feature: Per-Run Token Metrics Collection
 
+> **Note:** This feature is implemented as part of `claude-bros` (see `docs/specs/claude-bros.md`), not as a standalone Python script. The technical design below remains the authoritative reference for the metrics subsystem (`metrics/parser.rs` and `metrics/db.rs`). The entry point, language, and integration sections no longer apply as written.
+
 ## Summary
 
 After each agent team run completes, collect token usage data from Claude Code's local session files and persist it to a global SQLite database. Data is captured per-agent and per-run, tagged with project and team context, so token costs can be quantified and compared across runs over time. This is a collection-only feature — querying and reporting are out of scope.

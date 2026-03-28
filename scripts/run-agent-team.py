@@ -133,8 +133,9 @@ def main() -> None:
     if exit_code != 0:
         print(f"WARNING: Agent exited with code {exit_code}. Run may be incomplete.")
 
-    create_mr(branch_name, spec_file, base_branch, log_file, exit_code)
-    print(f"MR created for branch: {branch_name}")
+    # MR creation disabled — remote git work is handled manually.
+    # Re-enable once claude-bros is built with GitHub support.
+    print(f"Run complete. Branch: {branch_name}")
 
 
 if __name__ == "__main__":
