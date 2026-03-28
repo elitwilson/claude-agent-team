@@ -70,8 +70,9 @@ fn test_discover_specs_returns_md_files_only() {
 
     let specs = discover_specs(dir.path()).unwrap();
     assert_eq!(specs.len(), 2);
-    assert!(specs.contains(&"feature-a.md".to_string()));
-    assert!(specs.contains(&"feature-b.md".to_string()));
+    let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&"feature-a.md"));
+    assert!(names.contains(&"feature-b.md"));
 }
 
 #[test]
@@ -84,7 +85,7 @@ fn test_discover_specs_skips_subdirectories() {
 
     let specs = discover_specs(dir.path()).unwrap();
     assert_eq!(specs.len(), 1);
-    assert_eq!(specs[0], "top-level.md");
+    assert_eq!(specs[0].name, "top-level.md");
 }
 
 #[test]
@@ -98,6 +99,101 @@ fn test_discover_specs_returns_empty_for_empty_dir() {
 fn test_discover_specs_errors_on_nonexistent_dir() {
     let result = discover_specs(Path::new("/nonexistent/path/surely"));
     assert!(result.is_err());
+}
+
+// --- Frontmatter parsing tests ---
+
+#[test]
+fn test_parse_frontmatter_status_ready() {
+    let content = "---\nstatus: ready\n---\n# My Spec";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+}
+
+#[test]
+fn test_parse_frontmatter_status_complete() {
+    let content = "---\nstatus: complete\n---\n# My Spec";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Complete);
+}
+
+#[test]
+fn test_parse_frontmatter_status_needs_attention() {
+    let content = "---\nstatus: needs_attention\n---\n# My Spec";
+    assert_eq!(
+        parse_frontmatter_status(content),
+        SpecStatus::NeedsAttention
+    );
+}
+
+#[test]
+fn test_parse_frontmatter_status_missing_frontmatter() {
+    let content = "# My Spec\n\nNo frontmatter here.";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+}
+
+#[test]
+fn test_parse_frontmatter_status_unrecognized_value() {
+    let content = "---\nstatus: banana\n---\n# My Spec";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+}
+
+#[test]
+fn test_parse_frontmatter_status_missing_status_field() {
+    let content = "---\nnumber: 4\n---\n# My Spec";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+}
+
+#[test]
+fn test_parse_frontmatter_status_empty_frontmatter() {
+    let content = "---\n---\n# My Spec";
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+}
+
+// --- Spec discovery with status filtering tests ---
+
+#[test]
+fn test_discover_specs_filters_out_complete() {
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-done.md"),
+        "---\nstatus: complete\n---\n# Done",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("002-active.md"),
+        "---\nstatus: ready\n---\n# Active",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].name, "002-active.md");
+    assert_eq!(specs[0].status, SpecStatus::Ready);
+}
+
+#[test]
+fn test_discover_specs_includes_needs_attention() {
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-broken.md"),
+        "---\nstatus: needs_attention\n---\n# Broken",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].name, "001-broken.md");
+    assert_eq!(specs[0].status, SpecStatus::NeedsAttention);
+}
+
+#[test]
+fn test_discover_specs_treats_no_frontmatter_as_ready() {
+    let dir = create_temp_dir();
+    fs::write(dir.path().join("no-front.md"), "# No Frontmatter").unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].name, "no-front.md");
+    assert_eq!(specs[0].status, SpecStatus::Ready);
 }
 
 // --- Team discovery tests ---

@@ -1,7 +1,52 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
+
+/// Status of a spec file, parsed from YAML frontmatter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecStatus {
+    Ready,
+    Complete,
+    NeedsAttention,
+}
+
+/// A discovered spec file with its parsed status.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpecEntry {
+    pub name: String,
+    pub status: SpecStatus,
+}
+
+/// Parse the `status` field from YAML frontmatter in a spec file's content.
+/// Returns `SpecStatus::Ready` if frontmatter is missing, empty, or contains
+/// an unrecognized status value.
+pub fn parse_frontmatter_status(content: &str) -> SpecStatus {
+    let Some(fm) = extract_frontmatter(content) else {
+        return SpecStatus::Ready;
+    };
+    for line in fm.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("status:") {
+            return match value.trim() {
+                "ready" => SpecStatus::Ready,
+                "complete" => SpecStatus::Complete,
+                "needs_attention" => SpecStatus::NeedsAttention,
+                _ => SpecStatus::Ready,
+            };
+        }
+    }
+    SpecStatus::Ready
+}
+
+/// Extract the YAML frontmatter block (content between `---` delimiters).
+fn extract_frontmatter(content: &str) -> Option<&str> {
+    let content = content.trim_start();
+    let rest = content.strip_prefix("---")?;
+    let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    let end = rest.find("\n---")?;
+    Some(&rest[..end])
+}
 
 /// Project-level configuration loaded from `.claude-agent-team.toml`.
 #[derive(Debug, Clone, Deserialize)]
@@ -52,7 +97,8 @@ impl Config {
 }
 
 /// Discover spec files (`.md` only, no subdirectories) in the given specs directory.
-pub fn discover_specs(specs_dir: &Path) -> Result<Vec<String>> {
+/// Parses frontmatter status from each file and filters out specs with `status: complete`.
+pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
     let entries = std::fs::read_dir(specs_dir).context("Failed to read specs directory")?;
     let mut specs = Vec::new();
     for entry in entries {
@@ -60,12 +106,20 @@ pub fn discover_specs(specs_dir: &Path) -> Result<Vec<String>> {
         if entry.file_type()?.is_file() {
             if let Some(name) = entry.file_name().to_str() {
                 if name.ends_with(".md") {
-                    specs.push(name.to_string());
+                    let content = std::fs::read_to_string(entry.path())
+                        .context("Failed to read spec file")?;
+                    let status = parse_frontmatter_status(&content);
+                    if status != SpecStatus::Complete {
+                        specs.push(SpecEntry {
+                            name: name.to_string(),
+                            status,
+                        });
+                    }
                 }
             }
         }
     }
-    specs.sort();
+    specs.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(specs)
 }
 

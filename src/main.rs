@@ -30,18 +30,22 @@ fn run() -> Result<()> {
     let specs_dir = cwd.join(&config.specs_dir);
     let teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
 
-    let specs = config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
+    let spec_entries =
+        config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
     let teams = config::discover_teams(&teams_dir).context("Failed to discover team files")?;
 
-    if specs.is_empty() {
+    if spec_entries.is_empty() {
         anyhow::bail!("No spec files found in {}", specs_dir.display());
     }
     if teams.is_empty() {
         anyhow::bail!("No team files found in {}", teams_dir.display());
     }
 
+    // Extract spec names for TUI (TUI will accept SpecEntry directly in a future task)
+    let spec_names: Vec<String> = spec_entries.iter().map(|e| e.name.clone()).collect();
+
     // Run TUI — clears and restores terminal on exit
-    let selection = tui::ui::run_tui(specs, teams, &config.default_team)?;
+    let selection = tui::ui::run_tui(spec_names, teams, &config.default_team)?;
     let selection = match selection {
         Some(s) => s,
         None => {
@@ -112,7 +116,11 @@ fn run() -> Result<()> {
     );
 
     // Print summary
-    let metrics_status = if metrics_written { "metrics written" } else { "metrics collection failed" };
+    let metrics_status = if metrics_written {
+        "metrics written"
+    } else {
+        "metrics collection failed"
+    };
     println!("Branch: {branch} | {metrics_status}");
 
     Ok(())
