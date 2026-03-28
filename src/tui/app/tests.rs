@@ -248,3 +248,101 @@ fn test_move_down_on_metrics_screen_scrolls() {
     app.move_down();
     assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 1);
 }
+
+// --- Smoke tests: full navigation flow ---
+
+#[test]
+fn test_smoke_full_navigation_m_then_esc() {
+    let mut app = sample_app();
+    assert_eq!(app.screen, Screen::Launcher);
+
+    // Simulate 'm' → open metrics with seeded data
+    let state = MetricsState::new(vec![
+        RunSummary {
+            run_date: "2026-03-27".into(),
+            feature_slug: "auth-fix".into(),
+            team: "platform".into(),
+            total_input: 3500,
+            total_output: 1750,
+            total_cache: 800,
+            exit_code: 0,
+        },
+        RunSummary {
+            run_date: "2026-03-26".into(),
+            feature_slug: "metrics-query".into(),
+            team: "feature-dev".into(),
+            total_input: 5000,
+            total_output: 2500,
+            total_cache: 1200,
+            exit_code: 1,
+        },
+    ]);
+    app.open_metrics(state);
+    assert_eq!(app.screen, Screen::Metrics);
+    assert!(app.metrics_state.is_some());
+    assert_eq!(app.metrics_state.as_ref().unwrap().runs.len(), 2);
+
+    // Simulate Esc → back to launcher
+    app.close_metrics();
+    assert_eq!(app.screen, Screen::Launcher);
+}
+
+#[test]
+fn test_smoke_full_navigation_m_then_q() {
+    let mut app = sample_app();
+    app.open_metrics(sample_metrics_state());
+    assert_eq!(app.screen, Screen::Metrics);
+
+    // Simulate 'q' on metrics → back to launcher
+    app.close_metrics();
+    assert_eq!(app.screen, Screen::Launcher);
+}
+
+#[test]
+fn test_smoke_metrics_scroll_navigation() {
+    let mut app = sample_app();
+    let state = MetricsState::new(vec![
+        RunSummary {
+            run_date: "2026-03-27".into(),
+            feature_slug: "a".into(),
+            team: "team".into(),
+            total_input: 100,
+            total_output: 50,
+            total_cache: 25,
+            exit_code: 0,
+        },
+        RunSummary {
+            run_date: "2026-03-26".into(),
+            feature_slug: "b".into(),
+            team: "team".into(),
+            total_input: 200,
+            total_output: 100,
+            total_cache: 50,
+            exit_code: 0,
+        },
+    ]);
+    app.open_metrics(state);
+
+    // Scroll down then up
+    app.move_down();
+    assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 1);
+    app.move_up();
+    assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 0);
+}
+
+#[test]
+fn test_smoke_launcher_unchanged_after_metrics_roundtrip() {
+    let mut app = sample_app();
+    let original_spec_index = app.spec_index;
+    let original_team_index = app.team_index;
+
+    app.open_metrics(sample_metrics_state());
+    app.close_metrics();
+
+    // Launcher state preserved
+    assert_eq!(app.screen, Screen::Launcher);
+    assert_eq!(app.spec_index, original_spec_index);
+    assert_eq!(app.team_index, original_team_index);
+    assert!(!app.should_quit);
+    assert!(!app.confirmed);
+}
