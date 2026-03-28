@@ -41,11 +41,8 @@ fn run() -> Result<()> {
         anyhow::bail!("No team files found in {}", teams_dir.display());
     }
 
-    // Extract spec names for TUI (TUI will accept SpecEntry directly in a future task)
-    let spec_names: Vec<String> = spec_entries.iter().map(|e| e.name.clone()).collect();
-
     // Run TUI — clears and restores terminal on exit
-    let selection = tui::ui::run_tui(spec_names, teams, &config.default_team)?;
+    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team)?;
     let selection = match selection {
         Some(s) => s,
         None => {

@@ -1,11 +1,19 @@
 use super::*;
+use crate::config::{SpecEntry, SpecStatus};
+
+fn spec(name: &str) -> SpecEntry {
+    SpecEntry {
+        name: name.to_string(),
+        status: SpecStatus::Ready,
+    }
+}
 
 fn sample_app() -> App {
     App::new(
         vec![
-            "feature-a.md".into(),
-            "feature-b.md".into(),
-            "feature-c.md".into(),
+            spec("feature-a.md"),
+            spec("feature-b.md"),
+            spec("feature-c.md"),
         ],
         vec!["feature-dev".into(), "review-only".into()],
         "feature-dev",
@@ -29,7 +37,7 @@ fn test_new_sets_initial_state() {
 #[test]
 fn test_new_selects_default_team() {
     let app = App::new(
-        vec!["spec.md".into()],
+        vec![spec("spec.md")],
         vec!["review-only".into(), "feature-dev".into()],
         "feature-dev",
     );
@@ -39,7 +47,7 @@ fn test_new_selects_default_team() {
 #[test]
 fn test_new_defaults_to_first_team_if_default_not_found() {
     let app = App::new(
-        vec!["spec.md".into()],
+        vec![spec("spec.md")],
         vec!["review-only".into(), "feature-dev".into()],
         "nonexistent-team",
     );
@@ -247,6 +255,50 @@ fn test_move_down_on_metrics_screen_scrolls() {
     app.open_metrics(state);
     app.move_down();
     assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 1);
+}
+
+// --- Spec status in TUI ---
+
+fn sample_app_with_entries() -> App {
+    App::new(
+        vec![
+            SpecEntry {
+                name: "004-active.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "005-broken.md".into(),
+                status: SpecStatus::NeedsAttention,
+            },
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+    )
+}
+
+#[test]
+fn test_app_carries_spec_status() {
+    let app = sample_app_with_entries();
+    assert_eq!(app.specs.len(), 2);
+    assert_eq!(app.specs[0].status, SpecStatus::Ready);
+    assert_eq!(app.specs[1].status, SpecStatus::NeedsAttention);
+}
+
+#[test]
+fn test_result_returns_spec_name_not_entry() {
+    let mut app = sample_app_with_entries();
+    app.spec_index = 1;
+    app.confirm();
+    let result = app.result().unwrap();
+    assert_eq!(result.spec, "005-broken.md");
+}
+
+#[test]
+fn test_needs_attention_spec_is_navigable() {
+    let mut app = sample_app_with_entries();
+    app.move_down();
+    assert_eq!(app.spec_index, 1);
+    assert_eq!(app.specs[app.spec_index].status, SpecStatus::NeedsAttention);
 }
 
 // --- Smoke tests: full navigation flow ---

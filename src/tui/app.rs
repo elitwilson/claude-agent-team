@@ -1,4 +1,5 @@
 use super::metrics::MetricsState;
+use crate::config::SpecEntry;
 
 /// Which screen is currently displayed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +27,7 @@ pub struct TuiResult {
 /// TUI application state.
 #[derive(Debug)]
 pub struct App {
-    pub specs: Vec<String>,
+    pub specs: Vec<SpecEntry>,
     pub teams: Vec<String>,
     pub spec_index: usize,
     pub team_index: usize,
@@ -39,7 +40,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(specs: Vec<String>, teams: Vec<String>, default_team: &str) -> Self {
+    pub fn new(specs: Vec<SpecEntry>, teams: Vec<String>, default_team: &str) -> Self {
         let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
         Self {
             specs,
@@ -133,7 +134,7 @@ impl App {
             return None;
         }
         Some(TuiResult {
-            spec: self.specs[self.spec_index].clone(),
+            spec: self.specs[self.spec_index].name.clone(),
             team: self.teams[self.team_index].clone(),
             headless: self.headless,
         })

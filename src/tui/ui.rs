@@ -19,12 +19,13 @@ use ratatui::{
 
 use super::app::{App, Panel, Screen, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
+use crate::config::{SpecEntry, SpecStatus};
 use crate::metrics::db::init_db;
 use crate::metrics::query::fetch_runs;
 
 /// Run the TUI, returning the user's selection or None if they quit.
 pub fn run_tui(
-    specs: Vec<String>,
+    specs: Vec<SpecEntry>,
     teams: Vec<String>,
     default_team: &str,
 ) -> Result<Option<TuiResult>> {
@@ -152,7 +153,14 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     let spec_items: Vec<ListItem> = app
         .specs
         .iter()
-        .map(|s| ListItem::new(s.as_str()))
+        .map(|s| {
+            let item = ListItem::new(s.name.as_str());
+            if s.status == SpecStatus::NeedsAttention {
+                item.style(Style::default().fg(Color::Yellow))
+            } else {
+                item
+            }
+        })
         .collect();
     let spec_list = List::new(spec_items)
         .block(
