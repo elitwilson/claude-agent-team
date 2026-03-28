@@ -1,27 +1,28 @@
-# Overnight Claude Code Agent Teams Workflow
+# Claude Code Agent Teams Workflow
 
-A spec for autonomously implementing features after hours using Claude Code Agent Teams, triggered via cron, reviewed in the morning via GitLab Merge Requests.
+A workflow for autonomously implementing features using Claude Code Agent Teams. A structured spec goes in, the team implements it via TDD, a GitLab Merge Request comes out for human review.
+
+> **Note:** Originally designed as an overnight cron-triggered workflow. Current approach is user-initiated — kick it off manually, watch or check back, iterate. Cron scheduling is a future step once the manual workflow is stable.
 
 ---
 
 ## Overview
 
-The workflow takes a structured feature spec document as input, spins up a Claude Code Agent Team to implement it autonomously overnight, and produces a GitLab Merge Request for human review in the morning.
+The workflow takes a structured feature spec document as input, spins up a Claude Code Agent Team to implement it, and produces a GitLab Merge Request for human review.
 
 ```
-[Spec Doc] → [Pre-flight] → [Cron Trigger] → [Agent Team Execution] → [MR Creation] → [Morning Review]
+[Spec Doc] → [Pre-flight] → [Agent Team Execution] → [MR Creation] → [Review]
 ```
 
 ---
 
 ## Assumptions & Prerequisites
 
-- macOS development machine
 - GitLab hosted repository
-- Claude Code installed and authenticated
-- Two Claude Pro accounts ($20/mo each) with OAuth tokens available
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` enabled
-- Feature spec document already written and committed to `docs/specs/`
+- Claude Code v2.1.32+ installed and authenticated
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` enabled (handled by `run-agent-team.py`)
+- Feature spec document written and committed to `docs/specs/`
+- This workflow repo installed globally via `install.py`
 
 ---
 
@@ -42,11 +43,10 @@ docs/specs/
 - Discrete, dependency-ordered tasks
 - Acceptance criteria / definition of done
 
+**Spec template:** `docs/spec-template.md` in this repo.
+
 **How agents consume it:**
-The orchestration prompt references the spec via Claude Code's `@` file syntax:
-```
-implement @docs/specs/<feature-slug>.md
-```
+`run-agent-team.py` builds the orchestration prompt from `prompts/orchestration.md`, substituting the spec path at runtime. The Lead agent reads the spec directly using its file tools.
 
 ---
 
@@ -54,39 +54,13 @@ implement @docs/specs/<feature-slug>.md
 
 **Responsibility:** Ensure the environment is clean and ready before agents touch anything.
 
-**Steps (run as part of trigger script):**
+**Implemented in:** `scripts/preflight.py`
 
-```bash
-#!/bin/bash
-set -e
-
-SPEC_FILE=$1
-FEATURE_SLUG=$(basename "$SPEC_FILE" .md)
-BASE_BRANCH="main"  # or develop, configure as needed
-
-# 1. Confirm spec file exists
-if [ ! -f "$SPEC_FILE" ]; then
-  echo "ERROR: Spec file not found: $SPEC_FILE"
-  exit 1
-fi
-
-# 2. Confirm git working tree is clean
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: Working tree is dirty. Commit or stash changes first."
-  exit 1
-fi
-
-# 3. Pull latest from base branch
-git checkout "$BASE_BRANCH"
-git pull origin "$BASE_BRANCH"
-
-# 4. Create and checkout feature branch
-BRANCH_NAME="feature/${FEATURE_SLUG}-$(date +%Y%m%d)"
-git checkout -b "$BRANCH_NAME"
-
-echo "Pre-flight passed. Branch: $BRANCH_NAME"
-echo "$BRANCH_NAME" > /tmp/current-agent-branch
-```
+Key functions:
+- `check_spec_exists` — confirms spec file exists
+- `check_clean_working_tree` — confirms no uncommitted changes
+- `pull_latest` — checks out base branch and pulls
+- `create_feature_branch` — creates `feature/<slug>-<YYYYMMDD>` and checks it out
 
 ---
 
@@ -94,71 +68,21 @@ echo "$BRANCH_NAME" > /tmp/current-agent-branch
 
 **Responsibility:** Invoke Claude Code non-interactively with the right context.
 
-**Cron entry** (`crontab -e`):
+**Implemented in:** `scripts/run-agent-team.py`
+
+**Usage:**
 ```bash
-# Run at 11pm every weekday
-0 23 * * 1-5 /path/to/scripts/run-agent-team.sh docs/specs/my-feature.md >> /path/to/logs/agent-run-$(date +\%Y\%m\%d).log 2>&1
+run-agent-team.py docs/specs/my-feature.md
 ```
 
-**Trigger script** (`scripts/run-agent-team.sh`):
-```bash
-#!/bin/bash
-set -e
-
-SPEC_FILE=$1
-FEATURE_SLUG=$(basename "$SPEC_FILE" .md)
-LOG_DIR="logs/agent-runs"
-mkdir -p "$LOG_DIR"
-
-# Load OAuth token for account selection
-# Toggle between accounts to distribute rate limit usage
-export CLAUDE_OAUTH_TOKEN="<your-token-here>"  # or load from secure store
-export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-
-# Run pre-flight
-source scripts/preflight.sh "$SPEC_FILE"
-BRANCH_NAME=$(cat /tmp/current-agent-branch)
-
-# Build the orchestration prompt
-PROMPT="You are the Lead agent. Your job is to coordinate, not to write code.
-
-Read the feature spec at @${SPEC_FILE} and implement it using an agent team as follows:
-
-## Your team
-- **Coder** (claude-sonnet-4-6): owns all implementation. Follows strict TDD — writes failing tests first, implements against them, iterates until green. Owns backend and frontend.
-- **Reviewer** (claude-sonnet-4-6): reviews Coder's failing tests before implementation begins. One pass, critical issues only.
-
-## Task lifecycle
-Break the spec into discrete tasks (aim for 5-6 per teammate). Assign tasks explicitly to teammates. Teammates self-claim next available unblocked task when they finish. Tasks have dependencies — order them correctly so Reviewer gates happen before Coder goes GREEN.
-
-## TDD flow per feature task
-1. Coder writes failing tests (RED) and signals Reviewer
-2. Reviewer reads spec + failing tests — flags CRITICAL issues only (tests that don't match spec requirements, tests testing implementation logic rather than behavior, obvious misdirection). One pass. One message back to Coder if issues found.
-3. Coder fixes if needed, goes GREEN, refactors, marks task complete
-4. Repeat for next task
-
-## Reviewer guardrails
-Reviewer does NOT flag: code style, naming, edge cases not in spec, anything not a spec violation.
-Reviewer writes outcome to docs/specs/${FEATURE_SLUG}-review-notes.md regardless of result.
-Reviewer gets one pass per task. If issues remain after Coder's fix cycle, they go in review-notes.md for human review — Reviewer does not re-engage.
-
-## Rules
-- Do not write code yourself. Delegate everything to teammates.
-- Do not modify files outside the scope of this spec.
-- If blocked on a decision, log it to docs/specs/${FEATURE_SLUG}-decisions.md with your assumption and proceed. Never halt.
-- Teammates commit after each completed task.
-- Teammates must not push to remote.
-- When all tasks are complete: shut down teammates, clean up the team, then signal done.
-- Max turns: 200"
-
-# Invoke Claude Code non-interactively
-claude --print \
-  --max-turns 200 \
-  "$PROMPT" \
-  >> "${LOG_DIR}/${FEATURE_SLUG}-$(date +%Y%m%d).log" 2>&1
-
-echo "Agent run complete. Branch: $BRANCH_NAME"
-```
+**Key decisions:**
+- Scripts are Python (not bash) — better error handling, easier to evolve toward a CLI
+- Orchestration prompt lives in `prompts/orchestration.md` and is loaded at runtime via `string.Template` substitution — not inlined in the script
+- `--dangerously-skip-permissions` used for POC to prevent unattended halts. See open questions for pre-approval plan.
+- `--teammate-mode in-process` forced — no tmux dependency, works in any terminal
+- `--print` mode confirmed working with agent teams (tested)
+- OAuth token loaded from macOS Keychain if present, falls back to default auth
+- Cron scheduling is a future step — not implemented
 
 ---
 
@@ -169,25 +93,23 @@ echo "Agent run complete. Branch: $BRANCH_NAME"
 **Configuration approach:** Defined in the orchestration prompt (Step 3), not a separate config file. The lead agent reads the spec and determines how many teammates to spawn and what to assign each.
 
 ### Defining teammates
-There is currently no native way to pre-define agent team members as reusable config files. Teammates are spawned as general-purpose agents — the only way to specialize them is through the natural language prompt the Lead writes at spawn time. (An open GitHub issue requests `.claude/agents/` integration with agent teams, but it doesn't exist yet.)
 
-This means role definitions — Coder guardrails, Reviewer constraints, TDD rules — have to live somewhere accessible to the Lead at runtime. Three options:
+Teammates are spawned via natural language — there is no native config file format for pre-defining agent team members. The only way to specialize a teammate is through the spawn prompt the Lead writes at spawn time.
 
-| Option | Approach | Tradeoff |
-|--------|----------|----------|
-| Inline in orchestration prompt | Embed full role definitions in the bash script | Works, but verbose and hard to maintain |
-| In CLAUDE.md | Lead reads roles from CLAUDE.md automatically | Clean, but adds to CLAUDE.md token cost for every session — not just agent team runs |
-| Separate roles file | Lead reads `docs/agent-roles.md` at spawn time | Lean prompt, lean CLAUDE.md, roles are versioned and reusable across specs |
+**Decided:** Role definitions live in discrete files in `docs/roles/`:
 
-**Recommended approach: `docs/agent-roles.md`**
-
-Keep role definitions in a dedicated file in the repo. The orchestration prompt tells the Lead to read it before spawning teammates:
 ```
-Before spawning teammates, read @docs/agent-roles.md for role definitions and guardrails.
-Spawn a Coder and a Reviewer per those definitions.
+docs/roles/
+├── lead.md       ← Lead reads this for its own behavior
+├── coder.md      ← Lead passes this in the Coder spawn prompt
+└── reviewer.md   ← Lead passes this in the Reviewer spawn prompt
 ```
 
-This keeps the orchestration prompt lean, keeps CLAUDE.md lean, and makes roles independently editable and version-controlled without touching the trigger script.
+Each teammate only receives its own role definition — Coder never sees Reviewer's instructions and vice versa. This was a deliberate token and context isolation decision.
+
+The orchestration prompt (`prompts/orchestration.md`) instructs the Lead to read all three files before spawning, then include the relevant file's contents in each teammate's spawn prompt.
+
+**Why not CLAUDE.md:** Rules in `~/.claude/rules/` and CLAUDE.md load automatically for every session including regular manual work. Agent-specific role instructions would pollute non-agent sessions and load for all teammates regardless of role. Passing via spawn prompt is the correct isolation model.
 
 ### Team size
 Start with 3 teammates max. Token usage scales linearly with team size — 3 teammates costs roughly 3-4x a single session. Beyond 4-5 teammates, coordination overhead starts eating the parallelism gains.
@@ -254,7 +176,11 @@ Your `.claude/rules/*.md` files behave as follows:
 **Action:** Audit your rules before running agent teams. Add `paths:` frontmatter to any rule that isn't truly universal.
 
 ### Pre-approve permissions
-Unattended agents will halt if they hit an unapproved permission prompt with nobody at the keyboard. Before running overnight, pre-approve common operations in Claude Code's permission settings — file writes, git commands, test execution, anything the agents will routinely need.
+Unattended agents will halt if they hit an unapproved permission prompt with nobody at the keyboard.
+
+**Current approach (POC):** `--dangerously-skip-permissions` is passed to the claude invocation, which propagates to all teammates. This eliminates permission halts entirely.
+
+**Future approach:** Replace with a curated set of pre-approved operations (file writes, git commands, test execution). Reduces blast radius. See open questions.
 
 ### Rate limit strategy (two Pro accounts)
 - Run primary agents under Account 1 token
