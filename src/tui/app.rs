@@ -64,8 +64,14 @@ impl App {
         };
     }
 
-    /// Move selection up within the current panel.
+    /// Move selection up within the current panel or scroll metrics.
     pub fn move_up(&mut self) {
+        if self.screen == Screen::Metrics {
+            if let Some(ref mut state) = self.metrics_state {
+                state.scroll_up();
+            }
+            return;
+        }
         match self.focused_panel {
             Panel::Spec => {
                 self.spec_index = self.spec_index.saturating_sub(1);
@@ -77,8 +83,14 @@ impl App {
         }
     }
 
-    /// Move selection down within the current panel.
+    /// Move selection down within the current panel or scroll metrics.
     pub fn move_down(&mut self) {
+        if self.screen == Screen::Metrics {
+            if let Some(ref mut state) = self.metrics_state {
+                state.scroll_down();
+            }
+            return;
+        }
         match self.focused_panel {
             Panel::Spec => {
                 if self.spec_index + 1 < self.specs.len() {
@@ -102,6 +114,17 @@ impl App {
     /// Confirm and exit the TUI (Enter).
     pub fn confirm(&mut self) {
         self.confirmed = true;
+    }
+
+    /// Switch to the metrics screen with loaded data.
+    pub fn open_metrics(&mut self, state: MetricsState) {
+        self.screen = Screen::Metrics;
+        self.metrics_state = Some(state);
+    }
+
+    /// Return to the launcher from the metrics screen.
+    pub fn close_metrics(&mut self) {
+        self.screen = Screen::Launcher;
     }
 
     /// Get the selected result, if confirmed.

@@ -1,21 +1,26 @@
+use std::env;
 use std::io;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::Line,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
-    Terminal,
 };
 
-use super::app::{App, Panel, TuiResult};
+use super::app::{App, Panel, Screen, TuiResult};
+use super::metrics::{MetricsState, render_metrics};
+use crate::metrics::db::init_db;
+use crate::metrics::query::fetch_runs;
 
 /// Run the TUI, returning the user's selection or None if they quit.
 pub fn run_tui(
@@ -53,16 +58,29 @@ where
         terminal.draw(|f| render(f, app))?;
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') | KeyCode::Char('Q') => {
-                    app.should_quit = true;
-                }
-                KeyCode::Tab => app.next_panel(),
-                KeyCode::Up => app.move_up(),
-                KeyCode::Down => app.move_down(),
-                KeyCode::Char(' ') => app.toggle_headless(),
-                KeyCode::Enter => app.confirm(),
-                _ => {}
+            match app.screen {
+                Screen::Launcher => match key.code {
+                    KeyCode::Char('q') | KeyCode::Char('Q') => {
+                        app.should_quit = true;
+                    }
+                    KeyCode::Char('m') | KeyCode::Char('M') => {
+                        load_metrics(app);
+                    }
+                    KeyCode::Tab => app.next_panel(),
+                    KeyCode::Up => app.move_up(),
+                    KeyCode::Down => app.move_down(),
+                    KeyCode::Char(' ') => app.toggle_headless(),
+                    KeyCode::Enter => app.confirm(),
+                    _ => {}
+                },
+                Screen::Metrics => match key.code {
+                    KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                        app.close_metrics();
+                    }
+                    KeyCode::Up => app.move_up(),
+                    KeyCode::Down => app.move_down(),
+                    _ => {}
+                },
             }
         }
 
@@ -73,7 +91,50 @@ where
     Ok(())
 }
 
+/// Lazily load metrics data from the DB on first open.
+fn load_metrics(app: &mut App) {
+    if app.metrics_state.is_some() {
+        app.screen = Screen::Metrics;
+        return;
+    }
+
+    let db_path = env::var_os("HOME").map(|h| {
+        PathBuf::from(h)
+            .join(".claude")
+            .join("claude-agent-team-metrics.db")
+    });
+
+    let state = match db_path {
+        Some(path) if path.exists() => match rusqlite::Connection::open(&path) {
+            Ok(conn) => {
+                if init_db(&conn).is_err() {
+                    MetricsState::with_error("Failed to initialize database schema".into())
+                } else {
+                    match fetch_runs(&conn) {
+                        Ok(runs) => MetricsState::new(runs),
+                        Err(e) => MetricsState::with_error(format!("Failed to load runs: {e}")),
+                    }
+                }
+            }
+            Err(e) => MetricsState::with_error(format!("Failed to open database: {e}")),
+        },
+        _ => MetricsState::new(vec![]),
+    };
+
+    app.open_metrics(state);
+}
+
 fn render(f: &mut ratatui::Frame, app: &App) {
+    match app.screen {
+        Screen::Metrics => {
+            if let Some(ref state) = app.metrics_state {
+                render_metrics(f, state);
+            }
+            return;
+        }
+        Screen::Launcher => {}
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -88,7 +149,11 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     let normal_style = Style::default();
 
     // Spec panel
-    let spec_items: Vec<ListItem> = app.specs.iter().map(|s| ListItem::new(s.as_str())).collect();
+    let spec_items: Vec<ListItem> = app
+        .specs
+        .iter()
+        .map(|s| ListItem::new(s.as_str()))
+        .collect();
     let spec_list = List::new(spec_items)
         .block(
             Block::default()
@@ -106,7 +171,11 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
 
     // Team panel
-    let team_items: Vec<ListItem> = app.teams.iter().map(|t| ListItem::new(t.as_str())).collect();
+    let team_items: Vec<ListItem> = app
+        .teams
+        .iter()
+        .map(|t| ListItem::new(t.as_str()))
+        .collect();
     let team_list = List::new(team_items)
         .block(
             Block::default()
@@ -124,7 +193,11 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     f.render_stateful_widget(team_list, chunks[1], &mut team_state);
 
     // Run options panel
-    let headless_label = if app.headless { "[x] Headless" } else { "[ ] Headless" };
+    let headless_label = if app.headless {
+        "[x] Headless"
+    } else {
+        "[ ] Headless"
+    };
     let opts = Paragraph::new(headless_label).block(
         Block::default()
             .borders(Borders::ALL)

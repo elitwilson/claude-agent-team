@@ -170,3 +170,81 @@ fn test_app_metrics_state_is_none_by_default() {
     let app = sample_app();
     assert!(app.metrics_state.is_none());
 }
+
+// --- Screen switching ---
+
+use crate::metrics::query::RunSummary;
+use crate::tui::metrics::MetricsState;
+
+fn sample_metrics_state() -> MetricsState {
+    MetricsState::new(vec![RunSummary {
+        run_date: "2026-03-27".into(),
+        feature_slug: "feat".into(),
+        team: "team".into(),
+        total_input: 100,
+        total_output: 50,
+        total_cache: 25,
+        exit_code: 0,
+    }])
+}
+
+#[test]
+fn test_open_metrics_switches_screen() {
+    let mut app = sample_app();
+    app.open_metrics(sample_metrics_state());
+    assert_eq!(app.screen, Screen::Metrics);
+}
+
+#[test]
+fn test_open_metrics_stores_state() {
+    let mut app = sample_app();
+    app.open_metrics(sample_metrics_state());
+    assert!(app.metrics_state.is_some());
+    assert_eq!(app.metrics_state.as_ref().unwrap().runs.len(), 1);
+}
+
+#[test]
+fn test_close_metrics_returns_to_launcher() {
+    let mut app = sample_app();
+    app.open_metrics(sample_metrics_state());
+    app.close_metrics();
+    assert_eq!(app.screen, Screen::Launcher);
+}
+
+#[test]
+fn test_move_up_on_metrics_screen_scrolls() {
+    let mut app = sample_app();
+    let mut state = sample_metrics_state();
+    // Add more runs so we can scroll
+    state.runs.push(RunSummary {
+        run_date: "2026-03-26".into(),
+        feature_slug: "feat2".into(),
+        team: "team".into(),
+        total_input: 200,
+        total_output: 100,
+        total_cache: 50,
+        exit_code: 0,
+    });
+    state.scroll_offset = 1;
+    app.open_metrics(state);
+    app.move_up();
+    assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 0);
+}
+
+#[test]
+fn test_move_down_on_metrics_screen_scrolls() {
+    let mut app = sample_app();
+    let mut state = sample_metrics_state();
+    state.runs.push(RunSummary {
+        run_date: "2026-03-26".into(),
+        feature_slug: "feat2".into(),
+        team: "team".into(),
+        total_input: 200,
+        total_output: 100,
+        total_cache: 50,
+        exit_code: 0,
+    });
+    app.open_metrics(state);
+    app.move_down();
+    assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 1);
+}
