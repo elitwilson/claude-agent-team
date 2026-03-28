@@ -1,3 +1,12 @@
+use super::metrics::MetricsState;
+
+/// Which screen is currently displayed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Screen {
+    Launcher,
+    Metrics,
+}
+
 /// Which panel is currently focused in the TUI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Panel {
@@ -25,14 +34,13 @@ pub struct App {
     pub focused_panel: Panel,
     pub should_quit: bool,
     pub confirmed: bool,
+    pub screen: Screen,
+    pub metrics_state: Option<MetricsState>,
 }
 
 impl App {
     pub fn new(specs: Vec<String>, teams: Vec<String>, default_team: &str) -> Self {
-        let team_index = teams
-            .iter()
-            .position(|t| t == default_team)
-            .unwrap_or(0);
+        let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
         Self {
             specs,
             teams,
@@ -42,6 +50,8 @@ impl App {
             focused_panel: Panel::Spec,
             should_quit: false,
             confirmed: false,
+            screen: Screen::Launcher,
+            metrics_state: None,
         }
     }
 

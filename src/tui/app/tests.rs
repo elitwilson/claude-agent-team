@@ -2,7 +2,11 @@ use super::*;
 
 fn sample_app() -> App {
     App::new(
-        vec!["feature-a.md".into(), "feature-b.md".into(), "feature-c.md".into()],
+        vec![
+            "feature-a.md".into(),
+            "feature-b.md".into(),
+            "feature-c.md".into(),
+        ],
         vec!["feature-dev".into(), "review-only".into()],
         "feature-dev",
     )
@@ -151,4 +155,18 @@ fn test_result_returns_selection_when_confirmed() {
     assert_eq!(result.spec, "feature-b.md");
     assert_eq!(result.team, "feature-dev");
     assert!(result.headless);
+}
+
+// --- Screen state ---
+
+#[test]
+fn test_app_defaults_to_launcher_screen() {
+    let app = sample_app();
+    assert_eq!(app.screen, Screen::Launcher);
+}
+
+#[test]
+fn test_app_metrics_state_is_none_by_default() {
+    let app = sample_app();
+    assert!(app.metrics_state.is_none());
 }
