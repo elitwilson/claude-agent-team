@@ -73,17 +73,10 @@ pub fn run_claude(
         cmd.stdout(log_file);
         cmd.stderr(log_err);
     } else {
-        // Interactive: pipe stdout through tee for logging
+        // Interactive: inherit stdio directly so claude gets a real TTY.
+        // No log file in interactive mode — tee breaks the interactive UI.
         cmd.stdin(Stdio::inherit());
-        // Use tee to write to both terminal and log file
-        let tee = Command::new("tee")
-            .args(["-a", log_path])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::inherit())
-            .spawn()
-            .context("Failed to spawn tee process")?;
-
-        cmd.stdout(tee.stdin.expect("tee stdin should be piped"));
+        cmd.stdout(Stdio::inherit());
         cmd.stderr(Stdio::inherit());
     }
 
