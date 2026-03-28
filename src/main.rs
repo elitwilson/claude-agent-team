@@ -1,6 +1,5 @@
 mod config;
 mod metrics;
-mod mr;
 mod preflight;
 mod prompt;
 mod runner;
@@ -112,20 +111,9 @@ fn run() -> Result<()> {
         exit_code,
     );
 
-    // Create MR
-    let mr_created = match mr::create_mr(&feature_slug, &config.base_branch, exit_code) {
-        Ok(()) => true,
-        Err(e) => {
-            eprintln!("Warning: MR creation failed: {e:#}");
-            false
-        }
-    };
-
     // Print summary
-    println!(
-        "{}",
-        mr::format_summary(&branch, mr_created, metrics_written)
-    );
+    let metrics_status = if metrics_written { "metrics written" } else { "metrics collection failed" };
+    println!("Branch: {branch} | {metrics_status}");
 
     Ok(())
 }
