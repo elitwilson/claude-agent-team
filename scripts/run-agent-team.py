@@ -46,10 +46,9 @@ def run_agent(prompt: str, log_file: Path, headless: bool = False, max_turns: in
         with log_file.open("a") as log:
             result = subprocess.run(cmd, stdout=log, stderr=log, env=env)
     else:
-        tee = subprocess.Popen(["tee", "-a", str(log_file)], stdin=subprocess.PIPE)
-        result = subprocess.run(cmd, stdout=tee.stdin, env=env)
-        tee.stdin.close()
-        tee.wait()
+        # Inherit stdio directly — claude needs a real TTY for its interactive UI.
+        # No log file in interactive mode.
+        result = subprocess.run(cmd, env=env)
     return result.returncode
 
 
