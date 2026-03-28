@@ -60,6 +60,8 @@ Ordered by dependency. Each task should be a self-contained unit of work with a 
 
 Aim for 3–5 tasks. Too few means tasks are too large for reliable agent checkpoints. Too many means coordination overhead dominates.
 
+> **If this spec produces a runnable binary or entry point:** include an explicit final task that writes a smoke/integration test verifying the binary runs end-to-end and produces observable output. The agent team follows TDD strictly — if `main()` wiring has no test, it will not be written. A passing `cargo test` (or equivalent) is not sufficient evidence that the pieces are connected.
+
 ---
 
 ## Considerations
