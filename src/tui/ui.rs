@@ -150,33 +150,40 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     let normal_style = Style::default();
 
     // Spec panel
-    let spec_items: Vec<ListItem> = app
-        .specs
-        .iter()
-        .map(|s| {
-            let item = ListItem::new(s.name.as_str());
-            if s.status == SpecStatus::NeedsAttention {
-                item.style(Style::default().fg(Color::Yellow))
-            } else {
-                item
-            }
-        })
-        .collect();
-    let spec_list = List::new(spec_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Spec")
-                .border_style(if app.focused_panel == Panel::Spec {
-                    focused_style
+    let spec_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Spec")
+        .border_style(if app.focused_panel == Panel::Spec {
+            focused_style
+        } else {
+            normal_style
+        });
+
+    if app.specs.is_empty() {
+        let msg = Paragraph::new("All specs complete — nothing to run")
+            .style(Style::default().fg(Color::DarkGray))
+            .block(spec_block);
+        f.render_widget(msg, chunks[0]);
+    } else {
+        let spec_items: Vec<ListItem> = app
+            .specs
+            .iter()
+            .map(|s| {
+                let item = ListItem::new(s.name.as_str());
+                if s.status == SpecStatus::NeedsAttention {
+                    item.style(Style::default().fg(Color::Yellow))
                 } else {
-                    normal_style
-                }),
-        )
-        .highlight_symbol("> ");
-    let mut spec_state = ListState::default();
-    spec_state.select(Some(app.spec_index));
-    f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
+                    item
+                }
+            })
+            .collect();
+        let spec_list = List::new(spec_items)
+            .block(spec_block)
+            .highlight_symbol("> ");
+        let mut spec_state = ListState::default();
+        spec_state.select(Some(app.spec_index));
+        f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
+    }
 
     // Team panel
     let team_items: Vec<ListItem> = app

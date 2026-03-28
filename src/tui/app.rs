@@ -112,9 +112,11 @@ impl App {
         self.headless = !self.headless;
     }
 
-    /// Confirm and exit the TUI (Enter).
+    /// Confirm and exit the TUI (Enter). No-op if there are no specs to select.
     pub fn confirm(&mut self) {
-        self.confirmed = true;
+        if !self.specs.is_empty() {
+            self.confirmed = true;
+        }
     }
 
     /// Switch to the metrics screen with loaded data.

@@ -34,9 +34,6 @@ fn run() -> Result<()> {
         config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
     let teams = config::discover_teams(&teams_dir).context("Failed to discover team files")?;
 
-    if spec_entries.is_empty() {
-        anyhow::bail!("No spec files found in {}", specs_dir.display());
-    }
     if teams.is_empty() {
         anyhow::bail!("No team files found in {}", teams_dir.display());
     }

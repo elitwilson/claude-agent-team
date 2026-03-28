@@ -1,6 +1,6 @@
 ---
 number: 004
-status: ready
+status: complete
 ---
 
 # Feature: Spec Status and Numbering Convention
