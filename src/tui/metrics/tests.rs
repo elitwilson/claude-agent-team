@@ -1,5 +1,6 @@
 use super::*;
 use crate::metrics::query::RunSummary;
+use ratatui::{Terminal, backend::TestBackend};
 
 fn sample_run(slug: &str) -> RunSummary {
     RunSummary {
@@ -11,6 +12,22 @@ fn sample_run(slug: &str) -> RunSummary {
         total_cache: 25,
         exit_code: 0,
     }
+}
+
+/// Render the metrics screen to a test backend and return the buffer content as a string.
+fn render_to_string(state: &MetricsState, width: u16, height: u16) -> String {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| render_metrics(f, state)).unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    let mut output = String::new();
+    for y in 0..buffer.area.height {
+        for x in 0..buffer.area.width {
+            output.push_str(buffer.cell((x, y)).unwrap().symbol());
+        }
+        output.push('\n');
+    }
+    output
 }
 
 // --- MetricsState construction ---
@@ -68,4 +85,89 @@ fn test_scroll_up_clamps_at_zero() {
     assert_eq!(state.scroll_offset, 0);
     state.scroll_up();
     assert_eq!(state.scroll_offset, 0);
+}
+
+// --- Render: column headers ---
+
+#[test]
+fn test_render_shows_column_headers() {
+    let state = MetricsState::new(vec![sample_run("feat")]);
+    let output = render_to_string(&state, 100, 10);
+    assert!(output.contains("Date"), "missing Date header");
+    assert!(output.contains("Spec"), "missing Spec header");
+    assert!(output.contains("Team"), "missing Team header");
+    assert!(output.contains("Input"), "missing Input header");
+    assert!(output.contains("Output"), "missing Output header");
+    assert!(output.contains("Cache"), "missing Cache header");
+    assert!(output.contains("Status"), "missing Status header");
+}
+
+// --- Render: data row ---
+
+#[test]
+fn test_render_shows_run_data() {
+    let run = RunSummary {
+        run_date: "2026-03-27".into(),
+        feature_slug: "auth-fix".into(),
+        team: "platform".into(),
+        total_input: 3500,
+        total_output: 1750,
+        total_cache: 800,
+        exit_code: 0,
+    };
+    let state = MetricsState::new(vec![run]);
+    let output = render_to_string(&state, 100, 10);
+    assert!(output.contains("2026-03-27"), "missing run date");
+    assert!(output.contains("auth-fix"), "missing feature slug");
+    assert!(output.contains("platform"), "missing team");
+    assert!(output.contains("3500"), "missing input tokens");
+    assert!(output.contains("1750"), "missing output tokens");
+    assert!(output.contains("800"), "missing cache tokens");
+}
+
+// --- Render: exit code symbols ---
+
+#[test]
+fn test_render_exit_code_zero_shows_check() {
+    let mut run = sample_run("ok-run");
+    run.exit_code = 0;
+    let state = MetricsState::new(vec![run]);
+    let output = render_to_string(&state, 100, 10);
+    assert!(output.contains("✓"), "exit code 0 should render as ✓");
+}
+
+#[test]
+fn test_render_exit_code_nonzero_shows_cross() {
+    let mut run = sample_run("bad-run");
+    run.exit_code = 1;
+    let state = MetricsState::new(vec![run]);
+    let output = render_to_string(&state, 100, 10);
+    assert!(
+        output.contains("✗"),
+        "non-zero exit code should render as ✗"
+    );
+}
+
+// --- Render: empty state ---
+
+#[test]
+fn test_render_empty_state_shows_message() {
+    let state = MetricsState::new(vec![]);
+    let output = render_to_string(&state, 100, 10);
+    assert!(
+        output.contains("No runs") || output.contains("no runs") || output.contains("empty"),
+        "empty state should show a friendly message"
+    );
+}
+
+// --- Render: error state ---
+
+#[test]
+fn test_render_error_state_shows_error_message() {
+    let state = MetricsState::with_error("Database connection failed".into());
+    let output = render_to_string(&state, 100, 10);
+    assert!(
+        output.contains("Database connection failed"),
+        "error state should display the error message"
+    );
 }
