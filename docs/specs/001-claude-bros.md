@@ -1,3 +1,8 @@
+---
+number: 001
+status: complete
+---
+
 # Feature: claude-bros — Rust TUI Launcher
 
 ## Summary
@@ -31,7 +36,7 @@
 - Preflight: git clean check, pull latest, branch creation
 - Prompt template loading and variable substitution
 - `claude` process spawning (spawn + wait, not exec)
-- Token metrics collection (port of `docs/specs/metrics-collection.md` — see note in Considerations)
+- Token metrics collection (port of `docs/specs/002-metrics-collection.md` — see note in Considerations)
 - MR creation via `git push` with GitLab push options
 - macOS Keychain OAuth token loading
 - Post-run summary output
@@ -152,7 +157,7 @@ In interactive mode, stdin is inherited from the terminal. Stdout handling is co
 
 Invoke `security find-generic-password -w -s claude-token-1 -a claude` via `Command`. If it fails or returns empty, proceed without setting `CLAUDE_OAUTH_TOKEN` and print a warning.
 
-**Metrics collection** — full detail in `docs/specs/metrics-collection.md`. Summary:
+**Metrics collection** — full detail in `docs/specs/002-metrics-collection.md`. Summary:
 - Derive project dir: `cwd.trim_start_matches('/').replace('/', '-')`
 - Scan `~/.claude/projects/<project-dir>/` for `.jsonl` files
 - Filter messages by `timestamp >= started_at`

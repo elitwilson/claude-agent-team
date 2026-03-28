@@ -1,3 +1,8 @@
+---
+number: 003
+status: complete
+---
+
 # Feature: Metrics Query View
 
 ## Summary

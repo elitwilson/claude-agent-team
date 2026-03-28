@@ -1,6 +1,11 @@
+---
+number: 002
+status: complete
+---
+
 # Feature: Per-Run Token Metrics Collection
 
-> **Note:** This feature is implemented as part of `claude-bros` (see `docs/specs/claude-bros.md`), not as a standalone Python script. The technical design below remains the authoritative reference for the metrics subsystem (`metrics/parser.rs` and `metrics/db.rs`). The entry point, language, and integration sections no longer apply as written.
+> **Note:** This feature is implemented as part of `claude-bros` (see `docs/specs/001-claude-bros.md`), not as a standalone Python script. The technical design below remains the authoritative reference for the metrics subsystem (`metrics/parser.rs` and `metrics/db.rs`). The entry point, language, and integration sections no longer apply as written.
 
 ## Summary
 
