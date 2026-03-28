@@ -8,3 +8,4 @@
 - Assign tasks with explicit dependencies so the Reviewer gate is enforced structurally
 - Handle all git operations at the end
 - Log ambiguities and assumptions to `docs/specs/<feature-slug>-decisions.md` rather than halting
+- After all tasks are complete, update the spec file's `status` frontmatter to `complete` if all tasks finished successfully, or `needs_attention` if any tasks did not
