@@ -62,8 +62,8 @@ fn run() -> Result<()> {
     let spec_file_path = format!("{}/{}", config.specs_dir, selection.spec);
 
     // Preflight: clean check, checkout base, pull, create branch
-    let branch = preflight::run_preflight(&config.base_branch, &feature_slug)
-        .context("Preflight failed")?;
+    let branch =
+        preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
 
     // Render prompt template
     let template_path = Path::new(&workflow_dir)
@@ -122,7 +122,10 @@ fn run() -> Result<()> {
     };
 
     // Print summary
-    println!("{}", mr::format_summary(&branch, mr_created, metrics_written));
+    println!(
+        "{}",
+        mr::format_summary(&branch, mr_created, metrics_written)
+    );
 
     Ok(())
 }
@@ -137,7 +140,7 @@ fn collect_metrics(
 ) -> bool {
     let result = (|| -> Result<()> {
         let cwd_str = cwd.to_str().context("CWD path is not valid UTF-8")?;
-        let project_dir = cwd_str.trim_start_matches('/').replace('/', "-");
+        let project_dir = cwd_str.replace('/', "-");
 
         let jsonl_files = metrics::parser::discover_jsonl_files(&project_dir)?;
         let usages = metrics::parser::collect_agent_usage(&jsonl_files, started_at)?;

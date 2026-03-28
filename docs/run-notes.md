@@ -4,6 +4,35 @@ A record of notable runs — outcomes, root causes, and what changed as a result
 
 ---
 
+## 2026-03-27 — metrics-query (feature-dev team)
+
+**Spec:** `docs/specs/metrics-query.md`
+**Team:** feature-dev
+**Outcome:** Complete — 15/15 tasks, 94 tests passing, all reviews approved
+
+### What happened
+
+Clean run. All five areas implemented and approved without escalation. Smoke test task was included this time — the main.rs wiring lesson from the previous run paid off immediately. Two minor decisions logged to `docs/specs/metrics-query/decisions.md` (LEFT JOIN for zero-token runs, SUBSTR for date formatting) — both defensive, low-risk choices.
+
+**Incident:** The Reviewer crashed mid-run after ~104k tokens, likely context exhaustion from accumulating review context across multiple tasks. Human intervention was required to prompt the Lead to spawn a replacement Reviewer. The replacement completed the remaining 4 reviews without issue.
+
+### Root cause (Reviewer crash)
+
+The Reviewer's context window fills up across a multi-task run because it holds the full conversation history of every review pass. Unlike the Coder (who commits and starts relatively fresh on each task), the Reviewer accumulates spec analysis, expected test lists, coder tests, and review decisions for every task it completes. On a 5-task spec this can hit ~100k+ tokens.
+
+### Key insight
+
+The Lead may not be able to reliably detect a crashed teammate — "unresponsive" and "slow" look the same. Human monitoring is the current mitigation. This is an accepted failure mode for now.
+
+Spawning a fresh Reviewer per task would eliminate the context exhaustion risk but multiplies the token cost (spec reload, expected list regeneration per task). Not worth it at current scale.
+
+### What to change
+
+- Reviewer role now explicitly says to go idle after preparing expected lists — this reduces unnecessary turns and may reduce context growth slightly.
+- No structural change for now. Monitor whether context exhaustion recurs on longer specs.
+
+---
+
 ## 2026-03-27 — claude-bros (feature-dev team)
 
 **Spec:** `docs/specs/claude-bros.md`

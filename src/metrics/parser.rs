@@ -14,7 +14,8 @@ pub struct AgentUsage {
 }
 
 /// Derive the project directory name from a cwd path.
-/// Strips leading `/` and replaces remaining `/` with `-`.
+/// Replaces all `/` with `-` to match Claude's project directory naming convention.
+/// e.g. `/Users/charlo/dev/myproject` → `-Users-charlo-dev-myproject`
 pub fn derive_project_dir(cwd: &str) -> String {
     cwd.replace('/', "-")
 }
@@ -71,18 +72,12 @@ pub fn discover_jsonl_files(project_dir: &str) -> Result<Vec<PathBuf>> {
 }
 
 /// Parse JSONL files, filter by started_at timestamp, extract token usage per agent.
-pub fn collect_agent_usage(
-    jsonl_files: &[PathBuf],
-    started_at: &str,
-) -> Result<Vec<AgentUsage>> {
+pub fn collect_agent_usage(jsonl_files: &[PathBuf], started_at: &str) -> Result<Vec<AgentUsage>> {
     let mut usages = Vec::new();
     let mut agent_counter = 0u32;
 
     for path in jsonl_files {
-        let filename = path
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or("");
+        let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
 
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;

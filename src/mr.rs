@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Build the MR title, prefixing with "INCOMPLETE:" if exit code is non-zero.
 pub fn build_mr_title(feature_slug: &str, exit_code: i32) -> String {

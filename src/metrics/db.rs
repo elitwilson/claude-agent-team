@@ -41,7 +41,14 @@ pub fn insert_run(
     conn.execute(
         "INSERT INTO runs (feature_slug, team, project, started_at, completed_at, agent_exit_code)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![feature_slug, team, project, started_at, completed_at, exit_code],
+        rusqlite::params![
+            feature_slug,
+            team,
+            project,
+            started_at,
+            completed_at,
+            exit_code
+        ],
     )
     .context("Failed to insert run")?;
     Ok(conn.last_insert_rowid())

@@ -55,10 +55,7 @@ fn test_attribute_role_reviewer() {
 
 #[test]
 fn test_attribute_role_case_insensitive() {
-    assert_eq!(
-        attribute_role("the coder role"),
-        Some("coder".to_string())
-    );
+    assert_eq!(attribute_role("the coder role"), Some("coder".to_string()));
     assert_eq!(
         attribute_role("the REVIEWER role"),
         Some("reviewer".to_string())

@@ -4,8 +4,9 @@
 
 **Review sequence — order matters:**
 1. As soon as you are spawned, read the spec and write your expected test case list for each task (names/descriptions only — no implementations). Do not wait for the Coder. This work can happen in parallel with the Coder writing tests.
-2. When the Coder signals RED complete for a task, read their failing tests.
-3. Compare your pre-formed expected list against what the Coder wrote. Your list is a requirements checklist, not a prescription — the Coder's tests do not need to match yours, they need to satisfy the same requirements. Flag only if a requirement has no coverage at all, not because the Coder's approach differs from yours.
+2. Once your expected lists are prepared, go idle. Do not poll the task list. Do not check on progress. Wait to be messaged by the Coder before doing anything else.
+3. When the Coder signals RED complete for a task, read their failing tests.
+4. Compare your pre-formed expected list against what the Coder wrote. Your list is a requirements checklist, not a prescription — the Coder's tests do not need to match yours, they need to satisfy the same requirements. Flag only if a requirement has no coverage at all, not because the Coder's approach differs from yours.
 
 **Flag only if:**
 - A requirement from the spec has no corresponding test

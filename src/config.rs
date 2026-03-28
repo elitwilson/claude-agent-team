@@ -53,8 +53,7 @@ impl Config {
 
 /// Discover spec files (`.md` only, no subdirectories) in the given specs directory.
 pub fn discover_specs(specs_dir: &Path) -> Result<Vec<String>> {
-    let entries =
-        std::fs::read_dir(specs_dir).context("Failed to read specs directory")?;
+    let entries = std::fs::read_dir(specs_dir).context("Failed to read specs directory")?;
     let mut specs = Vec::new();
     for entry in entries {
         let entry = entry?;
@@ -72,8 +71,7 @@ pub fn discover_specs(specs_dir: &Path) -> Result<Vec<String>> {
 
 /// Discover team files from `prompts/teams/` directory, returning names without `.md` extension.
 pub fn discover_teams(teams_dir: &Path) -> Result<Vec<String>> {
-    let entries =
-        std::fs::read_dir(teams_dir).context("Failed to read teams directory")?;
+    let entries = std::fs::read_dir(teams_dir).context("Failed to read teams directory")?;
     let mut teams = Vec::new();
     for entry in entries {
         let entry = entry?;

@@ -28,7 +28,14 @@ pub fn build_log_path(feature_slug: &str, date: &str) -> String {
 /// Load OAuth token from macOS Keychain.
 pub fn load_oauth_token() -> Option<String> {
     let output = Command::new("security")
-        .args(["find-generic-password", "-w", "-s", "claude-token-1", "-a", "claude"])
+        .args([
+            "find-generic-password",
+            "-w",
+            "-s",
+            "claude-token-1",
+            "-a",
+            "claude",
+        ])
         .output()
         .ok()?;
 
@@ -37,11 +44,7 @@ pub fn load_oauth_token() -> Option<String> {
     }
 
     let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if token.is_empty() {
-        None
-    } else {
-        Some(token)
-    }
+    if token.is_empty() { None } else { Some(token) }
 }
 
 /// Spawn the claude process and wait for it to exit. Returns the exit code.
@@ -68,7 +71,9 @@ pub fn run_claude(
     if headless {
         // Headless: redirect stdout/stderr to log, stdin from /dev/null
         let log_file = File::create(log_path).context("Failed to create log file")?;
-        let log_err = log_file.try_clone().context("Failed to clone log file handle")?;
+        let log_err = log_file
+            .try_clone()
+            .context("Failed to clone log file handle")?;
         cmd.stdin(Stdio::null());
         cmd.stdout(log_file);
         cmd.stderr(log_err);
