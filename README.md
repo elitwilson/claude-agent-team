@@ -1,9 +1,9 @@
-# Agent Team Workflow
+# claude-bros
 
-A workflow for autonomously implementing features using Claude Code Agent Teams. A structured spec goes in, the team implements it via TDD, a GitLab Merge Request comes out.
+A tool for autonomously implementing features using Claude Code agent teams. Pick a spec in the TUI, assign a team, and `claude-bros` handles the rest: pre-flight git setup, agent session, metrics collection.
 
 ```
-[Spec Doc] → [Pre-flight] → [Agent Team] → [MR] → [Review]
+[Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
 ```
 
 The agent team consists of three roles: a **Lead** that coordinates, a **Coder** that implements via TDD, and a **Reviewer** that gates tests before implementation begins.
@@ -12,132 +12,171 @@ The agent team consists of three roles: a **Lead** that coordinates, a **Coder**
 
 ## Prerequisites
 
-- Claude Code v2.1.32 or later (`claude --version`)
-- GitLab hosted repository (for MR creation)
-- Python 3.12+
+- Claude Code CLI (`claude --version`)
+- Rust toolchain (`cargo --version`)
+- macOS (Keychain integration for OAuth token)
 
 ---
 
-## Installation
-
-Clone this repo, then run the install script from the project root:
+## Building
 
 ```bash
-git clone <this-repo> ~/workdev/claude/agent-team-workflow
-cd ~/workdev/claude/agent-team-workflow
-python install.py
+cargo build --release
 ```
 
-This will:
-- Symlink `rules/` into `~/.claude/rules/agent-workflow` (live — edits here take effect immediately)
-- Register agent team hooks in `~/.claude/settings.json`
-
-**Before running, be aware:**
-- `settings.json` will be read, modified, and rewritten. Back it up first if you have custom configuration you care about: `cp ~/.claude/settings.json ~/.claude/settings.json.bak`
-- The script will not touch any other files in `~/.claude/` and will not overwrite existing hook entries or settings keys
-
-Then add the scripts to your PATH in your shell profile:
-
-```bash
-export PATH="/path/to/agent-team-workflow/scripts:$PATH"
-```
+The binary is at `target/release/claude-bros`. Add it to your PATH or run via `cargo run` from this repo.
 
 ---
 
 ## Usage
 
-### 1. Write a spec
-
-Create a feature spec in your target project at `docs/specs/<feature-slug>.md`. See [Spec Format](#spec-format) below.
-
-### 2. Run
-
-From within your target project directory:
+Run from within your target project directory:
 
 ```bash
-run-agent-team.py docs/specs/my-feature.md
+claude-bros
 ```
 
-This runs pre-flight checks, invokes the agent team interactively, and creates a GitLab MR when complete. The full log is written to `logs/agent-runs/` in your target project.
+This opens the TUI where you select a spec and a team. On confirm, `claude-bros` will:
 
-**Flags:**
+1. Run pre-flight checks (clean working tree, checkout base branch, pull, create feature branch)
+2. Spawn the agent team session interactively
+3. Collect token metrics and write them to `~/.claude/claude-agent-team-metrics.db`
+4. Print a post-run summary
 
-```bash
-# Select a team type (default: feature-dev)
-run-agent-team.py docs/specs/my-feature.md --team feature-dev
+> **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-bros` from collecting metrics after the run.
 
-# Run headless — no interactive output, log only. For cron/overnight use.
-run-agent-team.py docs/specs/my-feature.md --headless
+### TUI Controls
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate list |
+| `Tab` | Switch panel (Spec → Team → Run Options) |
+| `Space` | Toggle headless mode |
+| `Enter` | Confirm and start run |
+| `m` | Open metrics viewer |
+| `q` | Quit |
+
+### Headless mode
+
+Toggle with `Space` in the TUI. Redirects all claude output to a log file instead of the terminal. Useful for overnight runs.
+
+Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target project.
+
+---
+
+## Configuration
+
+`claude-bros` works with no config file — all defaults apply. To override, add a `.claude-agent-team.toml` to your target project root:
+
+```toml
+specs_dir = "docs/specs"       # default
+default_team = "feature-dev"   # default
+base_branch = "main"           # default
 ```
 
 ---
 
-## Spec Format
+## Specs
 
-Copy `docs/spec-template.md` as your starting point. A spec must include:
+Specs live in `docs/specs/` by default. Each spec is a Markdown file with YAML frontmatter.
 
-- A title (`# Feature Name`) as the first line — used as the MR title
-- A feature summary
+### Naming convention
+
+Specs use a three-digit zero-padded sequential prefix:
+
+```
+docs/specs/001-my-feature.md
+docs/specs/002-another-feature.md
+```
+
+Numbers are assigned in the order specs are created and are never reused.
+
+### Frontmatter
+
+```yaml
+---
+number: 001
+status: ready
+---
+```
+
+| Status | Meaning | Shown in TUI |
+|--------|---------|--------------|
+| `ready` | Ready for implementation | Yes |
+| `needs_attention` | Previous run did not complete | Yes (yellow) |
+| `complete` | Implemented | No |
+
+Specs with missing or unrecognized status are treated as `ready`.
+
+The team lead updates the spec's `status` at the end of each run: `complete` if all tasks finished, `needs_attention` if any did not.
+
+### Writing a spec
+
+Copy `docs/spec-template.md` as your starting point. A spec should include:
+
+- Summary
 - Requirements
 - Scope (in and out)
-- Technical approach / architecture notes
+- Technical approach
 - Success criteria
 - Discrete, dependency-ordered tasks
-- Considerations (edge cases, gotchas)
-
-The Lead agent reads the spec and decomposes it into tasks for the team. The more explicit the task breakdown in the spec, the more reliably the Lead decomposes it.
+- Considerations
 
 ---
 
 ## Project Structure
 
 ```
-agent-team-workflow/
-├── install.py                  # Global installation into ~/.claude/
-├── agent-workflow.md           # Full workflow design document
-│
-├── scripts/
-│   ├── preflight.py            # Git checks and branch creation
-│   └── run-agent-team.py       # Main entry point — invokes the full pipeline
+claude-bros/
+├── src/
+│   ├── main.rs             # Entry point and post-run sequence
+│   ├── config.rs           # Config loading, spec/team discovery, frontmatter parsing
+│   ├── preflight.rs        # Git checks and feature branch creation
+│   ├── runner.rs           # claude process spawning, OAuth token loading
+│   ├── prompt.rs           # Prompt template loading and variable substitution
+│   ├── tui/                # Terminal UI (ratatui)
+│   │   ├── app.rs          # TUI application state
+│   │   ├── ui.rs           # Rendering and event loop
+│   │   └── metrics.rs      # Metrics screen
+│   └── metrics/            # Token metrics collection
+│       ├── parser.rs       # JSONL discovery and token extraction
+│       └── db.rs           # SQLite schema and writes
 │
 ├── prompts/
 │   └── teams/
-│       └── feature-dev.md      # Lead agent initialization prompt for feature-dev team
+│       └── feature-dev.md  # Lead agent initialization prompt
 │
 ├── docs/
-│   ├── agent-roles.md          # Index of role definitions
-│   ├── spec-template.md        # Spec template — copy this when writing a new spec
-│   ├── specs/                  # Feature specs (one per feature)
+│   ├── spec-template.md    # Copy this when writing a new spec
+│   ├── specs/              # Feature specs (00N-<slug>.md)
 │   └── roles/
-│       └── feature-dev/        # Role definitions for the feature-dev team
-│           ├── lead.md         # Lead: coordinates, never writes code
-│           ├── coder.md        # Coder: TDD implementation
-│           └── reviewer.md     # Reviewer: test review gate, one pass per task
+│       └── feature-dev/    # Role definitions
+│           ├── lead.md
+│           ├── coder.md
+│           └── reviewer.md
 │
-├── hooks/                      # Claude Code agent team hooks (stubs — future enforcement)
-│   ├── task-completed.sh
-│   ├── task-created.sh
-│   └── teammate-idle.sh
-│
-└── rules/                      # Symlinked into ~/.claude/rules/agent-workflow/
+└── rules/                  # Symlink into ~/.claude/rules/ for project-wide rules
 ```
 
 ---
 
 ## How It Works
 
-1. **Pre-flight** — validates the spec exists, confirms a clean git working tree, pulls latest, creates a feature branch (`feature/<slug>-<YYYYMMDD>`)
-2. **Agent team** — Lead reads the spec and role definitions, spawns Coder and Reviewer, coordinates a TDD loop per task
-3. **TDD loop** — Coder writes failing tests → Reviewer gates → Coder implements → commit → repeat
-4. **MR creation** — branch is pushed and a GitLab MR is opened automatically with run metadata
+1. **TUI** — select a spec and team; specs with `status: complete` are hidden
+2. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
+3. **Agent team** — Lead reads the spec and role definitions, spawns Coder and Reviewer, coordinates a TDD loop per task
+4. **TDD loop** — Coder writes failing tests → Reviewer gates → Coder implements → commit → repeat
+5. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite (non-fatal if it fails)
+6. **Summary** — branch name and metrics status printed to stdout
 
-### Runtime artifacts (written to target project)
+### Runtime artifacts
 
 | File | Purpose |
 |------|---------|
-| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions the Lead made during the run |
+| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions the Lead logged during the run |
 | `docs/specs/<slug>/review-notes.md` | Reviewer gate outcomes per task |
-| `logs/agent-runs/<slug>-<date>.log` | Full terminal log of the agent run |
+| `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
+| `~/.claude/claude-agent-team-metrics.db` | Token usage across all runs |
 
 ---
 
@@ -146,25 +185,8 @@ agent-team-workflow/
 ```
 [ ] Read docs/specs/<slug>/decisions.md if present
 [ ] Read docs/specs/<slug>/review-notes.md if present
-[ ] git diff main -- review the diff
+[ ] git diff main — review the diff
 [ ] Run the test suite
-[ ] Manually test against acceptance criteria
+[ ] Manually test against success criteria in the spec
 [ ] Merge or iterate
 ```
-
----
-
-## Iterating on This Workflow
-
-This repo is the source of truth. To update the global installation after making changes:
-
-- **Prompt or role changes** — take effect immediately (scripts read files at runtime)
-- **Rules changes** — take effect immediately (symlinked)
-- **Hook changes** — take effect immediately (hooks registered by absolute path)
-- **`install.py` changes** — re-run `python install.py` (idempotent)
-
----
-
-## Future Work
-
-See the [Open Questions section](agent-workflow.md#open-questions--future-improvements) in the workflow design doc.
