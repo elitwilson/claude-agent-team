@@ -9,6 +9,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use tui::app::RunMode;
 
 fn main() {
     if let Err(e) = run() {
@@ -47,6 +48,29 @@ fn run() -> Result<()> {
             return Ok(());
         }
     };
+
+    if selection.mode == RunMode::DraftRun {
+        let input_file = format!("{}/{}", config.specs_dir, selection.spec);
+        let drafter_template = Path::new(&workflow_dir)
+            .join("prompts")
+            .join("agents")
+            .join("drafter.md");
+        let rendered_prompt = prompt::render_drafter_prompt(
+            &drafter_template,
+            &input_file,
+            &config.specs_dir,
+            &workflow_dir,
+        )?;
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        let log_path = runner::build_log_path("drafter", &date);
+        let oauth_token = runner::load_oauth_token();
+        if oauth_token.is_none() {
+            eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
+        }
+        runner::run_claude(&rendered_prompt, selection.headless, &log_path, oauth_token.as_deref())?;
+        println!("Drafter run complete. Check {} for the new spec.", config.specs_dir);
+        return Ok(());
+    }
 
     // Derive feature slug from spec filename
     let feature_slug = selection

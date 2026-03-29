@@ -12,12 +12,12 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::Line,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
-use super::app::{App, Panel, Screen, TuiResult};
+use super::app::{App, Panel, RunMode, Screen, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use crate::config::{SpecEntry, SpecStatus};
 use crate::metrics::db::init_db;
@@ -68,6 +68,11 @@ where
                         load_metrics(app);
                     }
                     KeyCode::Tab => app.next_panel(),
+                    KeyCode::Left | KeyCode::Right
+                        if app.focused_panel == Panel::Spec =>
+                    {
+                        app.switch_tab();
+                    }
                     KeyCode::Up => app.move_up(),
                     KeyCode::Down => app.move_down(),
                     KeyCode::Char(' ') => app.toggle_headless(),
@@ -149,40 +154,81 @@ fn render(f: &mut ratatui::Frame, app: &App) {
     let focused_style = Style::default().fg(Color::Yellow);
     let normal_style = Style::default();
 
-    // Spec panel
+    // Spec panel — tab bar in title
+    let tab_title = {
+        let specs_label = if app.active_tab == SpecTab::Specs {
+            Span::styled(" Specs ", Style::default().add_modifier(Modifier::BOLD))
+        } else {
+            Span::raw(" Specs ")
+        };
+        let reqs_label = if app.active_tab == SpecTab::Requirements {
+            Span::styled(" Raw Inputs ", Style::default().add_modifier(Modifier::BOLD))
+        } else {
+            Span::raw(" Raw Inputs ")
+        };
+        Line::from(vec![specs_label, Span::raw("|"), reqs_label])
+    };
     let spec_block = Block::default()
         .borders(Borders::ALL)
-        .title("Spec")
+        .title(tab_title)
         .border_style(if app.focused_panel == Panel::Spec {
             focused_style
         } else {
             normal_style
         });
 
-    if app.specs.is_empty() {
-        let msg = Paragraph::new("All specs complete — nothing to run")
-            .style(Style::default().fg(Color::DarkGray))
-            .block(spec_block);
-        f.render_widget(msg, chunks[0]);
-    } else {
-        let spec_items: Vec<ListItem> = app
-            .specs
-            .iter()
-            .map(|s| {
-                let item = ListItem::new(s.name.as_str());
-                if s.status == SpecStatus::NeedsAttention {
-                    item.style(Style::default().fg(Color::Yellow))
-                } else {
-                    item
-                }
-            })
-            .collect();
-        let spec_list = List::new(spec_items)
-            .block(spec_block)
-            .highlight_symbol("> ");
-        let mut spec_state = ListState::default();
-        spec_state.select(Some(app.spec_index));
-        f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
+    match app.active_tab {
+        SpecTab::Specs => {
+            if app.specs.is_empty() {
+                let msg = Paragraph::new("All specs complete — nothing to run")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .block(spec_block);
+                f.render_widget(msg, chunks[0]);
+            } else {
+                let spec_items: Vec<ListItem> = app
+                    .specs
+                    .iter()
+                    .map(|s| {
+                        let item = ListItem::new(s.name.as_str());
+                        match s.status {
+                            SpecStatus::NeedsAttention => {
+                                item.style(Style::default().fg(Color::Yellow))
+                            }
+                            SpecStatus::Blocked => {
+                                item.style(Style::default().fg(Color::Red))
+                            }
+                            _ => item,
+                        }
+                    })
+                    .collect();
+                let spec_list = List::new(spec_items)
+                    .block(spec_block)
+                    .highlight_symbol("> ");
+                let mut spec_state = ListState::default();
+                spec_state.select(Some(app.spec_index));
+                f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
+            }
+        }
+        SpecTab::Requirements => {
+            if app.requirements.is_empty() {
+                let msg = Paragraph::new("No requirements files found")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .block(spec_block);
+                f.render_widget(msg, chunks[0]);
+            } else {
+                let req_items: Vec<ListItem> = app
+                    .requirements
+                    .iter()
+                    .map(|r| ListItem::new(r.name.as_str()))
+                    .collect();
+                let req_list = List::new(req_items)
+                    .block(spec_block)
+                    .highlight_symbol("> ");
+                let mut req_state = ListState::default();
+                req_state.select(Some(app.requirements_index));
+                f.render_stateful_widget(req_list, chunks[0], &mut req_state);
+            }
+        }
     }
 
     // Team panel
@@ -227,7 +273,7 @@ fn render(f: &mut ratatui::Frame, app: &App) {
 
     // Footer
     let footer = Paragraph::new(Line::from(
-        "  \u{2191}\u{2193} navigate  Tab switch panel  Space toggle  Enter confirm  q quit",
+        "  \u{2191}\u{2193} navigate  \u{2190}\u{2192} switch tab  Tab panel  Space toggle  Enter confirm  q quit",
     ));
     f.render_widget(footer, chunks[3]);
 }

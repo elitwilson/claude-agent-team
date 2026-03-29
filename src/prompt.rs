@@ -22,6 +22,24 @@ pub fn render_prompt(
     Ok(rendered)
 }
 
+/// Load the drafter prompt template and substitute variables.
+pub fn render_drafter_prompt(
+    template_path: &Path,
+    input_file: &str,
+    specs_dir: &str,
+    workflow_dir: &str,
+) -> Result<String> {
+    let template = std::fs::read_to_string(template_path)
+        .with_context(|| format!("Failed to read template at {}", template_path.display()))?;
+
+    let rendered = template
+        .replace("${INPUT_FILE}", input_file)
+        .replace("${SPECS_DIR}", specs_dir)
+        .replace("${WORKFLOW_DIR}", workflow_dir);
+
+    Ok(rendered)
+}
+
 /// Resolve the workflow directory (repo root containing `prompts/`).
 /// Checks `CLAUDE_AGENT_TEAM_DIR` env var first, then walks up from the binary location.
 pub fn resolve_workflow_dir() -> Result<String> {

@@ -3,7 +3,7 @@ number: 00N
 status: ready
 ---
 
-> **Numbering convention:** Spec files are prefixed with a three-digit zero-padded number (e.g. `001-claude-bros.md`) reflecting creation order. Numbers are never reused. The `number` field in frontmatter matches the file prefix. The `status` field is one of: `ready` (default for new specs), `complete` (implemented), or `needs_attention` (requires follow-up).
+> **Numbering convention:** Spec files are prefixed with a three-digit zero-padded number (e.g. `001-claude-bros.md`) reflecting creation order. Numbers are never reused. The `number` field in frontmatter matches the file prefix. The `status` field is one of: `ready` (default for new specs), `complete` (implemented), `needs_attention` (requires follow-up), or `blocked` (Drafter could not produce a complete spec — see `## Blockers` section).
 
 # Feature: <Name>
 
@@ -77,3 +77,12 @@ Aim for 3–5 tasks. Too few means tasks are too large for reliable agent checkp
 - Known gotchas in the codebase or framework that are relevant here
 - Constraints that affect implementation choices (e.g. "must not introduce a dependency on X")
 - Anything that would cause a reasonable engineer to make a wrong assumption
+
+---
+
+## Blockers
+
+> **Only present when `status: blocked`.** Remove this section when the spec reaches `ready`.
+
+- **[Blocker]:** What's missing or unresolvable, and what needs to happen to unblock it.
+- **[Question]:** Specific questions for the developer that the Drafter could not answer from the codebase alone.

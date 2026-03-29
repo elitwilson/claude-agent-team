@@ -301,6 +301,106 @@ fn test_needs_attention_spec_is_navigable() {
     assert_eq!(app.specs[app.spec_index].status, SpecStatus::NeedsAttention);
 }
 
+// --- Requirements tab ---
+
+fn app_with_mixed_entries() -> App {
+    App::new(
+        vec![
+            SpecEntry { name: "001-spec.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "email.txt".into(), status: SpecStatus::Raw },
+            SpecEntry { name: "002-spec.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "notes.md".into(), status: SpecStatus::Raw },
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+    )
+}
+
+#[test]
+fn test_app_splits_raw_entries_into_requirements() {
+    let app = app_with_mixed_entries();
+    assert_eq!(app.requirements.len(), 2);
+    let names: Vec<&str> = app.requirements.iter().map(|e| e.name.as_str()).collect();
+    assert!(names.contains(&"email.txt"));
+    assert!(names.contains(&"notes.md"));
+}
+
+#[test]
+fn test_app_splits_non_raw_entries_into_specs() {
+    let app = app_with_mixed_entries();
+    assert_eq!(app.specs.len(), 2);
+    let names: Vec<&str> = app.specs.iter().map(|e| e.name.as_str()).collect();
+    assert!(names.contains(&"001-spec.md"));
+    assert!(names.contains(&"002-spec.md"));
+}
+
+#[test]
+fn test_blocked_spec_is_not_confirmable() {
+    let mut app = App::new(
+        vec![SpecEntry { name: "003-blocked.md".into(), status: SpecStatus::Blocked }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+    );
+    app.confirm();
+    assert!(!app.confirmed);
+    assert!(app.result().is_none());
+}
+
+#[test]
+fn test_switch_tab_toggles_between_specs_and_requirements() {
+    let mut app = app_with_mixed_entries();
+    assert_eq!(app.active_tab, SpecTab::Specs);
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Requirements);
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Specs);
+}
+
+#[test]
+fn test_navigation_is_independent_per_tab() {
+    let mut app = app_with_mixed_entries();
+    app.move_down(); // move specs index to 1
+    assert_eq!(app.spec_index, 1);
+
+    app.switch_tab();
+    assert_eq!(app.requirements_index, 0); // requirements index unaffected
+    app.move_down();
+    assert_eq!(app.requirements_index, 1);
+
+    app.switch_tab();
+    assert_eq!(app.spec_index, 1); // specs index preserved
+}
+
+#[test]
+fn test_confirm_on_specs_tab_returns_team_run_mode() {
+    let mut app = app_with_mixed_entries();
+    assert_eq!(app.active_tab, SpecTab::Specs);
+    app.confirm();
+    let result = app.result().unwrap();
+    assert_eq!(result.mode, RunMode::TeamRun);
+    assert_eq!(result.spec, "001-spec.md");
+}
+
+#[test]
+fn test_confirm_on_requirements_tab_returns_draft_run_mode() {
+    let mut app = app_with_mixed_entries();
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Requirements);
+    app.confirm();
+    let result = app.result().unwrap();
+    assert_eq!(result.mode, RunMode::DraftRun);
+    assert_eq!(result.spec, "email.txt");
+}
+
+#[test]
+fn test_move_down_clamps_within_requirements_tab() {
+    let mut app = app_with_mixed_entries();
+    app.switch_tab();
+    app.requirements_index = 1; // last entry (2 items: email.txt, notes.md)
+    app.move_down();
+    assert_eq!(app.requirements_index, 1);
+}
+
 // --- Smoke tests: full navigation flow ---
 
 #[test]

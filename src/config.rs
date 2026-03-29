@@ -9,6 +9,9 @@ pub enum SpecStatus {
     Ready,
     Complete,
     NeedsAttention,
+    Blocked,
+    /// File has no frontmatter — treated as raw requirements input for the Drafter.
+    Raw,
 }
 
 /// A discovered spec file with its parsed status.
@@ -23,7 +26,7 @@ pub struct SpecEntry {
 /// an unrecognized status value.
 pub fn parse_frontmatter_status(content: &str) -> SpecStatus {
     let Some(fm) = extract_frontmatter(content) else {
-        return SpecStatus::Ready;
+        return SpecStatus::Raw;
     };
     for line in fm.lines() {
         let line = line.trim();
@@ -32,6 +35,7 @@ pub fn parse_frontmatter_status(content: &str) -> SpecStatus {
                 "ready" => SpecStatus::Ready,
                 "complete" => SpecStatus::Complete,
                 "needs_attention" => SpecStatus::NeedsAttention,
+                "blocked" => SpecStatus::Blocked,
                 _ => SpecStatus::Ready,
             };
         }
@@ -44,6 +48,9 @@ fn extract_frontmatter(content: &str) -> Option<&str> {
     let content = content.trim_start();
     let rest = content.strip_prefix("---")?;
     let rest = rest.strip_prefix('\n').unwrap_or(rest);
+    if rest.starts_with("---") {
+        return Some("");
+    }
     let end = rest.find("\n---")?;
     Some(&rest[..end])
 }
@@ -96,27 +103,25 @@ impl Config {
     }
 }
 
-/// Discover spec files (`.md` only, no subdirectories) in the given specs directory.
-/// Parses frontmatter status from each file and filters out specs with `status: complete`.
+/// Discover spec and requirements files (no subdirectories) in the given specs directory.
+/// Reads all text files; skips binaries (non-UTF-8) and files with `status: complete`.
 pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
     let entries = std::fs::read_dir(specs_dir).context("Failed to read specs directory")?;
     let mut specs = Vec::new();
     for entry in entries {
         let entry = entry?;
-        if entry.file_type()?.is_file() {
-            if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".md") {
-                    let content = std::fs::read_to_string(entry.path())
-                        .context("Failed to read spec file")?;
-                    let status = parse_frontmatter_status(&content);
-                    if status != SpecStatus::Complete {
-                        specs.push(SpecEntry {
-                            name: name.to_string(),
-                            status,
-                        });
-                    }
-                }
-            }
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(|s| s.to_string()) else {
+            continue;
+        };
+        let Ok(content) = std::fs::read_to_string(entry.path()) else {
+            continue; // skip binaries
+        };
+        let status = parse_frontmatter_status(&content);
+        if status != SpecStatus::Complete {
+            specs.push(SpecEntry { name, status });
         }
     }
     specs.sort_by(|a, b| a.name.cmp(&b.name));
