@@ -1,6 +1,10 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use include_dir::{Dir, include_dir};
+
+static WORKFLOW_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/prompts");
+static DOCS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/docs");
 
 /// Load a prompt template and substitute variables.
 pub fn render_prompt(
@@ -40,36 +44,43 @@ pub fn render_drafter_prompt(
     Ok(rendered)
 }
 
-/// Resolve the workflow directory (repo root containing `prompts/`).
-/// Checks `CLAUDE_AGENT_TEAM_DIR` env var first, then walks up from the binary location.
+/// Resolve the workflow directory. Checks `CLAUDE_AGENT_TEAM_DIR` env var first,
+/// then extracts embedded files to `~/.claude-agent-team/` and returns that path.
 pub fn resolve_workflow_dir() -> Result<String> {
-    // Check env var first
+    // Check env var first (allows override for development)
     if let Ok(dir) = std::env::var("CLAUDE_AGENT_TEAM_DIR") {
         if Path::new(&dir).join("prompts").exists() {
             return Ok(dir);
         }
     }
 
-    // Walk up from the binary's location
-    let exe = std::env::current_exe().context("Failed to determine binary location")?;
-    let mut dir = exe
-        .parent()
-        .map(Path::to_path_buf)
-        .context("Binary has no parent directory")?;
+    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let workflow_dir = Path::new(&home).join(".claude-agent-team");
+    std::fs::create_dir_all(&workflow_dir).context("Failed to create ~/.claude-agent-team")?;
 
-    loop {
-        if dir.join("prompts").exists() {
-            return dir
-                .to_str()
-                .map(String::from)
-                .context("Workflow dir path is not valid UTF-8");
+    extract_dir(&WORKFLOW_FILES, &workflow_dir.join("prompts"))?;
+    extract_dir(&DOCS_FILES, &workflow_dir.join("docs"))?;
+
+    workflow_dir
+        .to_str()
+        .map(String::from)
+        .context("Workflow dir path is not valid UTF-8")
+}
+
+/// Recursively extract an embedded Dir to a filesystem path.
+fn extract_dir(dir: &Dir, dest: &Path) -> Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for file in dir.files() {
+        let target = dest.join(file.path());
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)?;
         }
-        if !dir.pop() {
-            break;
-        }
+        std::fs::write(&target, file.contents())?;
     }
-
-    bail!("Could not find workflow directory (no ancestor contains a prompts/ subdirectory)")
+    for subdir in dir.dirs() {
+        extract_dir(subdir, dest)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
