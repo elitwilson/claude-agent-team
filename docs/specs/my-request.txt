@@ -1,3 +1,0 @@
-This is a requirement to do things that makes no sense whatsoever.
-
-You should probably read this and decide that a major blocker is... well... no requirements at all.
