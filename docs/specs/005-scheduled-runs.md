@@ -1,6 +1,6 @@
 ---
 number: 005
-status: ready
+status: complete
 ---
 
 # Feature: Scheduled Agent Runs (Backend)
