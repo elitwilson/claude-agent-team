@@ -333,8 +333,26 @@ fn extract_integer_value(s: &str) -> Option<u32> {
 ///
 /// Calls `launchctl unload <path>` then removes the file. Both steps are
 /// fatal — a missed cleanup turns a one-shot run into a recurring annual job.
-pub fn cleanup_plist(_path: &Path) -> Result<()> {
-    todo!()
+pub fn cleanup_plist(path: &Path) -> Result<()> {
+    let path_str = path.to_str().context("Plist path is not valid UTF-8")?;
+
+    let output = Command::new("launchctl")
+        .args(["unload", path_str])
+        .output()
+        .context("Failed to run launchctl unload")?;
+
+    if !output.status.success() || String::from_utf8_lossy(&output.stderr).contains("Unload failed") {
+        anyhow::bail!(
+            "launchctl unload failed for {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    std::fs::remove_file(path)
+        .with_context(|| format!("Failed to remove plist file: {}", path.display()))?;
+
+    Ok(())
 }
 
 /// The plist label prefix used by this tool.
