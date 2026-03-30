@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Datelike, Local, Timelike};
+use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 
 /// A scheduled agent run backed by a launchd plist.
 #[derive(Debug, PartialEq)]
@@ -155,13 +155,178 @@ pub fn list_pending() -> Result<Vec<ScheduledRun>> {
 }
 
 /// List pending scheduled runs in a given directory. Testable variant of `list_pending`.
-pub fn list_pending_in(_dir: &Path) -> Result<Vec<ScheduledRun>> {
-    todo!()
+pub fn list_pending_in(dir: &Path) -> Result<Vec<ScheduledRun>> {
+    let mut runs = Vec::new();
+
+    if !dir.exists() {
+        return Ok(runs);
+    }
+
+    for entry in std::fs::read_dir(dir).context("Failed to read LaunchAgents directory")? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with(PLIST_PREFIX) && name.ends_with(".plist") {
+            match parse_plist(&entry.path()) {
+                Ok(run) => runs.push(run),
+                Err(_) => continue, // skip malformed plists
+            }
+        }
+    }
+
+    Ok(runs)
 }
 
 /// Parse a plist file into a ScheduledRun.
-pub fn parse_plist(_path: &Path) -> Result<ScheduledRun> {
-    todo!()
+pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read plist: {}", path.display()))?;
+
+    // Extract ProgramArguments strings
+    let args = extract_program_arguments(&content)?;
+
+    // Parse spec, team, headless from ProgramArguments
+    let mut spec: Option<String> = None;
+    let mut team: Option<String> = None;
+    let mut headless = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--spec" => {
+                i += 1;
+                spec = args.get(i).cloned();
+            }
+            "--team" => {
+                i += 1;
+                team = args.get(i).cloned();
+            }
+            "--headless" => {
+                headless = true;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    let spec = spec.context("No --spec found in ProgramArguments")?;
+    let team = team.context("No --team found in ProgramArguments")?;
+
+    // Parse StartCalendarInterval
+    let (month, day, hour, minute) = extract_calendar_interval(&content)?;
+
+    let year = Local::now().year();
+    let scheduled_at = Local
+        .with_ymd_and_hms(year, month, day, hour, minute, 0)
+        .single()
+        .context("Invalid calendar interval date/time")?;
+
+    Ok(ScheduledRun {
+        spec,
+        team,
+        headless,
+        scheduled_at,
+        plist_path: path.to_path_buf(),
+    })
+}
+
+/// Extract <string> values from the ProgramArguments <array> in plist XML.
+fn extract_program_arguments(xml: &str) -> Result<Vec<String>> {
+    let mut args = Vec::new();
+    let mut in_array = false;
+
+    for line in xml.lines() {
+        let trimmed = line.trim();
+        if trimmed == "<key>ProgramArguments</key>" {
+            // Next non-whitespace should be <array>
+            continue;
+        }
+        if trimmed == "<array>" && !in_array {
+            in_array = true;
+            continue;
+        }
+        if trimmed == "</array>" && in_array {
+            break;
+        }
+        if in_array {
+            if let Some(val) = extract_string_value(trimmed) {
+                args.push(val);
+            }
+        }
+    }
+
+    Ok(args)
+}
+
+/// Extract Month, Day, Hour, Minute from StartCalendarInterval dict.
+fn extract_calendar_interval(xml: &str) -> Result<(u32, u32, u32, u32)> {
+    let mut month: Option<u32> = None;
+    let mut day: Option<u32> = None;
+    let mut hour: Option<u32> = None;
+    let mut minute: Option<u32> = None;
+
+    let mut in_interval = false;
+    let mut current_key: Option<String> = None;
+
+    for line in xml.lines() {
+        let trimmed = line.trim();
+        if trimmed == "<key>StartCalendarInterval</key>" {
+            in_interval = true;
+            continue;
+        }
+        if !in_interval {
+            continue;
+        }
+        // End of the interval dict
+        if trimmed == "</dict>" {
+            break;
+        }
+        if trimmed == "<dict>" {
+            continue;
+        }
+        if let Some(key) = extract_key_value(trimmed) {
+            current_key = Some(key);
+        } else if let Some(val) = extract_integer_value(trimmed) {
+            if let Some(ref key) = current_key {
+                match key.as_str() {
+                    "Month" => month = Some(val),
+                    "Day" => day = Some(val),
+                    "Hour" => hour = Some(val),
+                    "Minute" => minute = Some(val),
+                    _ => {}
+                }
+                current_key = None;
+            }
+        }
+    }
+
+    Ok((
+        month.context("Missing Month in StartCalendarInterval")?,
+        day.context("Missing Day in StartCalendarInterval")?,
+        hour.context("Missing Hour in StartCalendarInterval")?,
+        minute.context("Missing Minute in StartCalendarInterval")?,
+    ))
+}
+
+/// Extract value from `<string>VALUE</string>`.
+fn extract_string_value(s: &str) -> Option<String> {
+    s.strip_prefix("<string>")
+        .and_then(|rest| rest.strip_suffix("</string>"))
+        .map(|v| v.to_string())
+}
+
+/// Extract value from `<key>VALUE</key>`.
+fn extract_key_value(s: &str) -> Option<String> {
+    s.strip_prefix("<key>")
+        .and_then(|rest| rest.strip_suffix("</key>"))
+        .map(|v| v.to_string())
+}
+
+/// Extract value from `<integer>VALUE</integer>`.
+fn extract_integer_value(s: &str) -> Option<u32> {
+    s.strip_prefix("<integer>")
+        .and_then(|rest| rest.strip_suffix("</integer>"))
+        .and_then(|v| v.parse().ok())
 }
 
 /// Clean up a plist after a scheduled run completes.
