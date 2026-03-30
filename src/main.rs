@@ -109,6 +109,24 @@ fn run() -> Result<()> {
     // Build full relative spec path for the prompt template (e.g. docs/specs/my-feature.md)
     let spec_file_path = format!("{}/{}", config.specs_dir, selection.spec);
 
+    // Scheduled run — hand off to launchd and exit (no preflight, no prompt render)
+    if let Some(scheduled_at) = selection.scheduled_at {
+        scheduler::schedule_run(
+            &feature_slug,
+            &selection.team,
+            selection.headless,
+            Path::new(&cwd),
+            scheduled_at,
+        )
+        .context("Failed to schedule run")?;
+        println!(
+            "Scheduled: {} for {}",
+            selection.spec,
+            scheduled_at.format("%Y-%m-%d %I:%M %p")
+        );
+        return Ok(());
+    }
+
     // Preflight: clean check, checkout base, pull, create branch
     let branch =
         preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
