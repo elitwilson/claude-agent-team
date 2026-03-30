@@ -54,18 +54,6 @@ This opens the TUI where you select a spec and a team. On confirm, `claude-bros`
 
 > **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-bros` from collecting metrics after the run.
 
-### TUI Controls
-
-| Key | Action |
-|-----|--------|
-| `↑` / `↓` | Navigate list |
-| `Tab` | Switch panel (Spec → Team → Options) |
-| `Space` | Toggle selected option |
-| `←` / `→` | Switch spec tab (Specs / Raw Inputs) |
-| `Enter` | Confirm and start run |
-| `m` | Open metrics viewer |
-| `q` | Quit |
-
 ### Headless mode
 
 Toggle in the Options panel. Redirects all Claude output to a log file instead of the terminal. Useful for overnight runs.
