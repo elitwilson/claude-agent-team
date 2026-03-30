@@ -4,7 +4,9 @@ mod prefs;
 mod metrics;
 mod preflight;
 mod prompt;
+mod run_cmd;
 mod runner;
+mod scheduler;
 mod tui;
 
 use std::path::Path;
@@ -14,6 +16,16 @@ use chrono::Utc;
 use tui::app::RunMode;
 
 fn main() {
+    // Check for `run` subcommand before entering TUI path
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(|s| s.as_str()) == Some("run") {
+        if let Err(e) = run_scheduled(&args[2..]) {
+            eprintln!("Error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
     if let Err(e) = run() {
         eprintln!("Error: {e:#}");
         std::process::exit(1);
@@ -147,6 +159,74 @@ fn run() -> Result<()> {
         "metrics collection failed"
     };
     println!("Branch: {branch} | {metrics_status}");
+
+    Ok(())
+}
+
+fn run_scheduled(args: &[String]) -> Result<()> {
+    let run_args = run_cmd::parse_run_args(args)?;
+
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    let config = config::Config::load(&cwd)?;
+    let workflow_dir = prompt::resolve_workflow_dir()?;
+
+    let feature_slug = run_args
+        .spec
+        .strip_suffix(".md")
+        .unwrap_or(&run_args.spec)
+        .to_string();
+    let spec_file_path = format!("{}/{}", config.specs_dir, run_args.spec);
+
+    // Preflight: clean check, checkout base, pull, create branch
+    let _branch =
+        preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
+
+    // Render prompt template
+    let template_path = Path::new(&workflow_dir)
+        .join("prompts")
+        .join("teams")
+        .join(format!("{}.md", run_args.team));
+    let rendered_prompt = prompt::render_prompt(
+        &template_path,
+        &spec_file_path,
+        &feature_slug,
+        &workflow_dir,
+        &run_args.team,
+    )?;
+
+    let started_at = Utc::now().to_rfc3339();
+
+    let oauth_token = runner::load_oauth_token();
+    if oauth_token.is_none() {
+        eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
+    }
+
+    let date = chrono::Local::now().format("%Y%m%d").to_string();
+    let log_path = runner::build_log_path(&feature_slug, &date);
+
+    let exit_code = runner::run_claude(
+        &rendered_prompt,
+        run_args.headless,
+        &log_path,
+        oauth_token.as_deref(),
+    )?;
+
+    let completed_at = Utc::now().to_rfc3339();
+
+    collect_metrics(
+        &cwd,
+        &run_args.team,
+        &feature_slug,
+        &started_at,
+        &completed_at,
+        exit_code,
+    );
+
+    // Self-cleanup: remove the plist if this was a scheduled invocation
+    if let Some(plist_path) = &run_args.cleanup_plist {
+        scheduler::cleanup_plist(plist_path)
+            .context("Fatal: Failed to clean up scheduled run plist")?;
+    }
 
     Ok(())
 }
