@@ -8,7 +8,6 @@ use serde::Deserialize;
 pub enum SpecStatus {
     Ready,
     Complete,
-    NeedsAttention,
     Blocked,
     /// File has no frontmatter — treated as raw requirements input for the Drafter.
     Raw,
@@ -34,8 +33,7 @@ pub fn parse_frontmatter_status(content: &str) -> SpecStatus {
             return match value.trim() {
                 "ready" => SpecStatus::Ready,
                 "complete" => SpecStatus::Complete,
-                "needs_attention" => SpecStatus::NeedsAttention,
-                "blocked" => SpecStatus::Blocked,
+                "needs_attention" | "blocked" => SpecStatus::Blocked,
                 _ => SpecStatus::Ready,
             };
         }
@@ -120,9 +118,7 @@ pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
             continue; // skip binaries
         };
         let status = parse_frontmatter_status(&content);
-        if status != SpecStatus::Complete {
-            specs.push(SpecEntry { name, status });
-        }
+        specs.push(SpecEntry { name, status });
     }
     specs.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(specs)

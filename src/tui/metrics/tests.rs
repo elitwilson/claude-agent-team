@@ -15,7 +15,7 @@ fn sample_run(slug: &str) -> RunSummary {
 }
 
 /// Render the metrics screen to a test backend and return the buffer content as a string.
-fn render_to_string(state: &MetricsState, width: u16, height: u16) -> String {
+fn render_to_string(state: &mut MetricsState, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| render_metrics(f, state)).unwrap();
@@ -44,20 +44,40 @@ fn test_new_sets_runs_and_zero_scroll() {
 
 #[test]
 fn test_scroll_down_increments_offset() {
+    // 3 runs, 1 visible row -> can scroll up to offset 2
     let runs = vec![sample_run("a"), sample_run("b"), sample_run("c")];
     let mut state = MetricsState::new(runs);
+    state.visible_rows = 1;
     state.scroll_down();
     assert_eq!(state.scroll_offset, 1);
 }
 
 #[test]
-fn test_scroll_down_clamps_at_last_row() {
+fn test_scroll_down_noop_when_all_rows_fit() {
+    // 2 runs, 2 visible rows -> nothing to scroll
     let runs = vec![sample_run("a"), sample_run("b")];
     let mut state = MetricsState::new(runs);
+    state.visible_rows = 2;
     state.scroll_down();
-    state.scroll_down();
-    state.scroll_down(); // should clamp
-    assert_eq!(state.scroll_offset, 1); // max is len - 1
+    assert_eq!(state.scroll_offset, 0);
+}
+
+#[test]
+fn test_scroll_down_clamps_to_last_visible_window() {
+    // 5 runs, 3 visible rows -> max offset = 5 - 3 = 2
+    let runs = vec![
+        sample_run("a"),
+        sample_run("b"),
+        sample_run("c"),
+        sample_run("d"),
+        sample_run("e"),
+    ];
+    let mut state = MetricsState::new(runs);
+    state.visible_rows = 3;
+    for _ in 0..10 {
+        state.scroll_down();
+    }
+    assert_eq!(state.scroll_offset, 2);
 }
 
 #[test]
@@ -91,8 +111,8 @@ fn test_scroll_up_clamps_at_zero() {
 
 #[test]
 fn test_render_shows_column_headers() {
-    let state = MetricsState::new(vec![sample_run("feat")]);
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::new(vec![sample_run("feat")]);
+    let output = render_to_string(&mut state, 100, 10);
     assert!(output.contains("Date"), "missing Date header");
     assert!(output.contains("Spec"), "missing Spec header");
     assert!(output.contains("Team"), "missing Team header");
@@ -115,8 +135,8 @@ fn test_render_shows_run_data() {
         total_cache: 800,
         exit_code: 0,
     };
-    let state = MetricsState::new(vec![run]);
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::new(vec![run]);
+    let output = render_to_string(&mut state, 100, 10);
     assert!(output.contains("2026-03-27"), "missing run date");
     assert!(output.contains("auth-fix"), "missing feature slug");
     assert!(output.contains("platform"), "missing team");
@@ -131,8 +151,8 @@ fn test_render_shows_run_data() {
 fn test_render_exit_code_zero_shows_check() {
     let mut run = sample_run("ok-run");
     run.exit_code = 0;
-    let state = MetricsState::new(vec![run]);
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::new(vec![run]);
+    let output = render_to_string(&mut state, 100, 10);
     assert!(output.contains("✓"), "exit code 0 should render as ✓");
 }
 
@@ -140,8 +160,8 @@ fn test_render_exit_code_zero_shows_check() {
 fn test_render_exit_code_nonzero_shows_cross() {
     let mut run = sample_run("bad-run");
     run.exit_code = 1;
-    let state = MetricsState::new(vec![run]);
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::new(vec![run]);
+    let output = render_to_string(&mut state, 100, 10);
     assert!(
         output.contains("✗"),
         "non-zero exit code should render as ✗"
@@ -152,8 +172,8 @@ fn test_render_exit_code_nonzero_shows_cross() {
 
 #[test]
 fn test_render_empty_state_shows_message() {
-    let state = MetricsState::new(vec![]);
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::new(vec![]);
+    let output = render_to_string(&mut state, 100, 10);
     assert!(
         output.contains("No runs") || output.contains("no runs") || output.contains("empty"),
         "empty state should show a friendly message"
@@ -164,8 +184,8 @@ fn test_render_empty_state_shows_message() {
 
 #[test]
 fn test_render_error_state_shows_error_message() {
-    let state = MetricsState::with_error("Database connection failed".into());
-    let output = render_to_string(&state, 100, 10);
+    let mut state = MetricsState::with_error("Database connection failed".into());
+    let output = render_to_string(&mut state, 100, 10);
     assert!(
         output.contains("Database connection failed"),
         "error state should display the error message"

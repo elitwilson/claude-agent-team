@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::{SpecEntry, SpecStatus};
+use crate::prefs::Prefs;
 
 fn spec(name: &str) -> SpecEntry {
     SpecEntry {
@@ -17,6 +18,7 @@ fn sample_app() -> App {
         ],
         vec!["feature-dev".into(), "review-only".into()],
         "feature-dev",
+        Prefs::default(),
     )
 }
 
@@ -29,7 +31,7 @@ fn test_new_sets_initial_state() {
     assert_eq!(app.teams.len(), 2);
     assert_eq!(app.spec_index, 0);
     assert_eq!(app.focused_panel, Panel::Spec);
-    assert!(!app.headless);
+    assert!(!app.prefs.headless);
     assert!(!app.should_quit);
     assert!(!app.confirmed);
 }
@@ -40,6 +42,7 @@ fn test_new_selects_default_team() {
         vec![spec("spec.md")],
         vec!["review-only".into(), "feature-dev".into()],
         "feature-dev",
+        Prefs::default(),
     );
     assert_eq!(app.team_index, 1);
 }
@@ -50,6 +53,7 @@ fn test_new_defaults_to_first_team_if_default_not_found() {
         vec![spec("spec.md")],
         vec!["review-only".into(), "feature-dev".into()],
         "nonexistent-team",
+        Prefs::default(),
     );
     assert_eq!(app.team_index, 0);
 }
@@ -63,7 +67,7 @@ fn test_next_panel_cycles_through_panels() {
     app.next_panel();
     assert_eq!(app.focused_panel, Panel::Team);
     app.next_panel();
-    assert_eq!(app.focused_panel, Panel::RunOptions);
+    assert_eq!(app.focused_panel, Panel::Options);
     app.next_panel();
     assert_eq!(app.focused_panel, Panel::Spec);
 }
@@ -83,7 +87,7 @@ fn test_move_down_in_spec_panel() {
 #[test]
 fn test_move_down_clamps_at_bottom() {
     let mut app = sample_app();
-    app.spec_index = 2; // last spec
+    app.spec_index = 2;
     app.move_down();
     assert_eq!(app.spec_index, 2);
 }
@@ -124,16 +128,159 @@ fn test_move_up_in_team_panel() {
     assert_eq!(app.team_index, 0);
 }
 
+// --- Options panel navigation ---
+
+#[test]
+fn test_move_down_in_options_panel() {
+    let mut app = sample_app();
+    app.focused_panel = Panel::Options;
+    assert_eq!(app.options_index, 0);
+    app.move_down();
+    assert_eq!(app.options_index, 1);
+    app.move_down();
+    assert_eq!(app.options_index, 2);
+}
+
+#[test]
+fn test_move_down_in_options_panel_clamps_at_last_item() {
+    let mut app = sample_app();
+    app.focused_panel = Panel::Options;
+    app.options_index = 2; // last item
+    app.move_down();
+    assert_eq!(app.options_index, 2);
+}
+
+#[test]
+fn test_move_up_in_options_panel() {
+    let mut app = sample_app();
+    app.focused_panel = Panel::Options;
+    app.options_index = 2;
+    app.move_up();
+    assert_eq!(app.options_index, 1);
+}
+
+#[test]
+fn test_move_up_in_options_panel_clamps_at_zero() {
+    let mut app = sample_app();
+    app.focused_panel = Panel::Options;
+    assert_eq!(app.options_index, 0);
+    app.move_up();
+    assert_eq!(app.options_index, 0);
+}
+
+// --- Options toggle ---
+
+#[test]
+fn test_toggle_option_headless_at_index_0() {
+    let mut app = sample_app();
+    app.options_index = 0;
+    assert!(!app.prefs.headless);
+    app.toggle_option();
+    assert!(app.prefs.headless);
+}
+
+#[test]
+fn test_toggle_option_show_complete_at_index_1() {
+    let mut app = sample_app();
+    app.options_index = 1;
+    assert!(app.prefs.show_complete);
+    app.toggle_option();
+    assert!(!app.prefs.show_complete);
+}
+
+#[test]
+fn test_toggle_option_show_blocked_at_index_2() {
+    let mut app = sample_app();
+    app.options_index = 2;
+    assert!(app.prefs.show_blocked);
+    app.toggle_option();
+    assert!(!app.prefs.show_blocked);
+}
+
+// --- visible_specs filter ---
+
+#[test]
+fn test_visible_specs_includes_all_by_default() {
+    let app = App::new(
+        vec![
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
+            SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(), // show_complete=true, show_blocked=true
+    );
+    assert_eq!(app.visible_specs().len(), 3);
+}
+
+#[test]
+fn test_visible_specs_hides_complete_when_show_complete_false() {
+    let mut prefs = Prefs::default();
+    prefs.show_complete = false;
+    let app = App::new(
+        vec![
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        prefs,
+    );
+    let visible = app.visible_specs();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].name, "a.md");
+}
+
+#[test]
+fn test_visible_specs_hides_blocked_when_show_blocked_false() {
+    let mut prefs = Prefs::default();
+    prefs.show_blocked = false;
+    let app = App::new(
+        vec![
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Blocked },
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        prefs,
+    );
+    let visible = app.visible_specs();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].name, "a.md");
+}
+
+#[test]
+fn test_spec_index_clamped_after_filter_hides_selected_item() {
+    // 3 specs, cursor at index 2; hide blocked, which removes the last item
+    let app_entries = vec![
+        SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
+        SpecEntry { name: "b.md".into(), status: SpecStatus::Ready },
+        SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+    ];
+    let mut app = App::new(
+        app_entries,
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+    );
+    app.spec_index = 2; // pointing at "c.md" (Blocked)
+    app.options_index = 2; // Show Blocked toggle
+    app.toggle_option(); // hides blocked -> visible list shrinks to 2
+    assert!(app.spec_index < app.visible_specs().len()); // index must be in bounds
+    assert_eq!(app.spec_index, 1); // clamped to last visible
+}
+
 // --- Headless toggle ---
 
 #[test]
 fn test_toggle_headless() {
     let mut app = sample_app();
-    assert!(!app.headless);
+    assert!(!app.prefs.headless);
     app.toggle_headless();
-    assert!(app.headless);
+    assert!(app.prefs.headless);
     app.toggle_headless();
-    assert!(!app.headless);
+    assert!(!app.prefs.headless);
 }
 
 // --- Confirm ---
@@ -156,7 +303,7 @@ fn test_result_returns_selection_when_confirmed() {
     let mut app = sample_app();
     app.spec_index = 1;
     app.team_index = 0;
-    app.headless = true;
+    app.prefs.headless = true;
     app.confirm();
 
     let result = app.result().unwrap();
@@ -223,7 +370,6 @@ fn test_close_metrics_returns_to_launcher() {
 fn test_move_up_on_metrics_screen_scrolls() {
     let mut app = sample_app();
     let mut state = sample_metrics_state();
-    // Add more runs so we can scroll
     state.runs.push(RunSummary {
         run_date: "2026-03-26".into(),
         feature_slug: "feat2".into(),
@@ -262,17 +408,12 @@ fn test_move_down_on_metrics_screen_scrolls() {
 fn sample_app_with_entries() -> App {
     App::new(
         vec![
-            SpecEntry {
-                name: "004-active.md".into(),
-                status: SpecStatus::Ready,
-            },
-            SpecEntry {
-                name: "005-broken.md".into(),
-                status: SpecStatus::NeedsAttention,
-            },
+            SpecEntry { name: "004-active.md".into(), status: SpecStatus::Ready },
+            SpecEntry { name: "005-broken.md".into(), status: SpecStatus::Blocked },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
+        Prefs::default(),
     )
 }
 
@@ -281,24 +422,24 @@ fn test_app_carries_spec_status() {
     let app = sample_app_with_entries();
     assert_eq!(app.specs.len(), 2);
     assert_eq!(app.specs[0].status, SpecStatus::Ready);
-    assert_eq!(app.specs[1].status, SpecStatus::NeedsAttention);
+    assert_eq!(app.specs[1].status, SpecStatus::Blocked);
 }
 
 #[test]
 fn test_result_returns_spec_name_not_entry() {
     let mut app = sample_app_with_entries();
-    app.spec_index = 1;
+    app.spec_index = 0;
     app.confirm();
     let result = app.result().unwrap();
-    assert_eq!(result.spec, "005-broken.md");
+    assert_eq!(result.spec, "004-active.md");
 }
 
 #[test]
-fn test_needs_attention_spec_is_navigable() {
+fn test_blocked_spec_is_navigable() {
     let mut app = sample_app_with_entries();
     app.move_down();
     assert_eq!(app.spec_index, 1);
-    assert_eq!(app.specs[app.spec_index].status, SpecStatus::NeedsAttention);
+    assert_eq!(app.visible_specs()[app.spec_index].status, SpecStatus::Blocked);
 }
 
 // --- Requirements tab ---
@@ -313,6 +454,7 @@ fn app_with_mixed_entries() -> App {
         ],
         vec!["feature-dev".into()],
         "feature-dev",
+        Prefs::default(),
     )
 }
 
@@ -340,6 +482,20 @@ fn test_blocked_spec_is_not_confirmable() {
         vec![SpecEntry { name: "003-blocked.md".into(), status: SpecStatus::Blocked }],
         vec!["feature-dev".into()],
         "feature-dev",
+        Prefs::default(),
+    );
+    app.confirm();
+    assert!(!app.confirmed);
+    assert!(app.result().is_none());
+}
+
+#[test]
+fn test_complete_spec_is_not_confirmable() {
+    let mut app = App::new(
+        vec![SpecEntry { name: "done.md".into(), status: SpecStatus::Complete }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
     );
     app.confirm();
     assert!(!app.confirmed);
@@ -359,16 +515,16 @@ fn test_switch_tab_toggles_between_specs_and_requirements() {
 #[test]
 fn test_navigation_is_independent_per_tab() {
     let mut app = app_with_mixed_entries();
-    app.move_down(); // move specs index to 1
+    app.move_down();
     assert_eq!(app.spec_index, 1);
 
     app.switch_tab();
-    assert_eq!(app.requirements_index, 0); // requirements index unaffected
+    assert_eq!(app.requirements_index, 0);
     app.move_down();
     assert_eq!(app.requirements_index, 1);
 
     app.switch_tab();
-    assert_eq!(app.spec_index, 1); // specs index preserved
+    assert_eq!(app.spec_index, 1);
 }
 
 #[test]
@@ -396,19 +552,18 @@ fn test_confirm_on_requirements_tab_returns_draft_run_mode() {
 fn test_move_down_clamps_within_requirements_tab() {
     let mut app = app_with_mixed_entries();
     app.switch_tab();
-    app.requirements_index = 1; // last entry (2 items: email.txt, notes.md)
+    app.requirements_index = 1;
     app.move_down();
     assert_eq!(app.requirements_index, 1);
 }
 
-// --- Smoke tests: full navigation flow ---
+// --- Smoke tests ---
 
 #[test]
 fn test_smoke_full_navigation_m_then_esc() {
     let mut app = sample_app();
     assert_eq!(app.screen, Screen::Launcher);
 
-    // Simulate 'm' → open metrics with seeded data
     let state = MetricsState::new(vec![
         RunSummary {
             run_date: "2026-03-27".into(),
@@ -431,10 +586,8 @@ fn test_smoke_full_navigation_m_then_esc() {
     ]);
     app.open_metrics(state);
     assert_eq!(app.screen, Screen::Metrics);
-    assert!(app.metrics_state.is_some());
     assert_eq!(app.metrics_state.as_ref().unwrap().runs.len(), 2);
 
-    // Simulate Esc → back to launcher
     app.close_metrics();
     assert_eq!(app.screen, Screen::Launcher);
 }
@@ -444,8 +597,6 @@ fn test_smoke_full_navigation_m_then_q() {
     let mut app = sample_app();
     app.open_metrics(sample_metrics_state());
     assert_eq!(app.screen, Screen::Metrics);
-
-    // Simulate 'q' on metrics → back to launcher
     app.close_metrics();
     assert_eq!(app.screen, Screen::Launcher);
 }
@@ -474,8 +625,6 @@ fn test_smoke_metrics_scroll_navigation() {
         },
     ]);
     app.open_metrics(state);
-
-    // Scroll down then up
     app.move_down();
     assert_eq!(app.metrics_state.as_ref().unwrap().scroll_offset, 1);
     app.move_up();
@@ -491,7 +640,6 @@ fn test_smoke_launcher_unchanged_after_metrics_roundtrip() {
     app.open_metrics(sample_metrics_state());
     app.close_metrics();
 
-    // Launcher state preserved
     assert_eq!(app.screen, Screen::Launcher);
     assert_eq!(app.spec_index, original_spec_index);
     assert_eq!(app.team_index, original_team_index);

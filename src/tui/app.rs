@@ -1,5 +1,6 @@
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
+use crate::prefs::Prefs;
 
 /// Which screen is currently displayed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,7 +14,7 @@ pub enum Screen {
 pub enum Panel {
     Spec,
     Team,
-    RunOptions,
+    Options,
 }
 
 /// Which tab is active in the spec panel.
@@ -39,6 +40,9 @@ pub struct TuiResult {
     pub mode: RunMode,
 }
 
+/// Labels for each item in the Options panel, in order.
+pub const OPTIONS_ITEMS: usize = 3;
+
 /// TUI application state.
 #[derive(Debug)]
 pub struct App {
@@ -48,7 +52,8 @@ pub struct App {
     pub spec_index: usize,
     pub requirements_index: usize,
     pub team_index: usize,
-    pub headless: bool,
+    pub options_index: usize,
+    pub prefs: Prefs,
     pub focused_panel: Panel,
     pub active_tab: SpecTab,
     pub should_quit: bool,
@@ -58,7 +63,12 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(all_entries: Vec<SpecEntry>, teams: Vec<String>, default_team: &str) -> Self {
+    pub fn new(
+        all_entries: Vec<SpecEntry>,
+        teams: Vec<String>,
+        default_team: &str,
+        prefs: Prefs,
+    ) -> Self {
         let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
         let (requirements, specs): (Vec<SpecEntry>, Vec<SpecEntry>) =
             all_entries.into_iter().partition(|e| e.status == SpecStatus::Raw);
@@ -69,7 +79,8 @@ impl App {
             spec_index: 0,
             requirements_index: 0,
             team_index,
-            headless: false,
+            options_index: 0,
+            prefs,
             focused_panel: Panel::Spec,
             active_tab: SpecTab::Specs,
             should_quit: false,
@@ -79,12 +90,24 @@ impl App {
         }
     }
 
+    /// Returns specs visible under current filter settings.
+    pub fn visible_specs(&self) -> Vec<&SpecEntry> {
+        self.specs
+            .iter()
+            .filter(|s| match s.status {
+                SpecStatus::Complete => self.prefs.show_complete,
+                SpecStatus::Blocked => self.prefs.show_blocked,
+                _ => true,
+            })
+            .collect()
+    }
+
     /// Move focus to the next panel (Tab).
     pub fn next_panel(&mut self) {
         self.focused_panel = match self.focused_panel {
             Panel::Spec => Panel::Team,
-            Panel::Team => Panel::RunOptions,
-            Panel::RunOptions => Panel::Spec,
+            Panel::Team => Panel::Options,
+            Panel::Options => Panel::Spec,
         };
     }
 
@@ -116,7 +139,9 @@ impl App {
             Panel::Team => {
                 self.team_index = self.team_index.saturating_sub(1);
             }
-            Panel::RunOptions => {}
+            Panel::Options => {
+                self.options_index = self.options_index.saturating_sub(1);
+            }
         }
     }
 
@@ -131,7 +156,8 @@ impl App {
         match self.focused_panel {
             Panel::Spec => match self.active_tab {
                 SpecTab::Specs => {
-                    if self.spec_index + 1 < self.specs.len() {
+                    let visible = self.visible_specs().len();
+                    if self.spec_index + 1 < visible {
                         self.spec_index += 1;
                     }
                 }
@@ -146,23 +172,58 @@ impl App {
                     self.team_index += 1;
                 }
             }
-            Panel::RunOptions => {}
+            Panel::Options => {
+                if self.options_index + 1 < OPTIONS_ITEMS {
+                    self.options_index += 1;
+                }
+            }
         }
     }
 
-    /// Toggle the headless option (Space).
-    pub fn toggle_headless(&mut self) {
-        self.headless = !self.headless;
+    /// Toggle the option at the current options_index and save prefs.
+    pub fn toggle_option(&mut self) {
+        match self.options_index {
+            0 => self.prefs.headless = !self.prefs.headless,
+            1 => {
+                self.prefs.show_complete = !self.prefs.show_complete;
+                self.clamp_spec_index();
+            }
+            2 => {
+                self.prefs.show_blocked = !self.prefs.show_blocked;
+                self.clamp_spec_index();
+            }
+            _ => {}
+        }
+        self.prefs.save();
     }
 
-    /// Confirm and exit the TUI (Enter). No-op if the active list is empty or selected spec is blocked.
+    /// Toggle headless (kept for backwards compat with key handler).
+    pub fn toggle_headless(&mut self) {
+        self.options_index = 0;
+        self.toggle_option();
+    }
+
+    /// Clamp spec_index to the visible specs list length after a filter change.
+    fn clamp_spec_index(&mut self) {
+        let len = self.visible_specs().len();
+        if len == 0 {
+            self.spec_index = 0;
+        } else if self.spec_index >= len {
+            self.spec_index = len - 1;
+        }
+    }
+
+    /// Confirm and exit the TUI (Enter). No-op if the active list is empty or selected spec
+    /// is Complete or Blocked.
     pub fn confirm(&mut self) {
         match self.active_tab {
             SpecTab::Specs => {
-                if self.specs.is_empty() {
+                let visible = self.visible_specs();
+                if visible.is_empty() {
                     return;
                 }
-                if self.specs[self.spec_index].status == SpecStatus::Blocked {
+                let selected = visible[self.spec_index];
+                if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
                     return;
                 }
                 self.confirmed = true;
@@ -192,16 +253,19 @@ impl App {
             return None;
         }
         match self.active_tab {
-            SpecTab::Specs => Some(TuiResult {
-                spec: self.specs[self.spec_index].name.clone(),
-                team: self.teams[self.team_index].clone(),
-                headless: self.headless,
-                mode: RunMode::TeamRun,
-            }),
+            SpecTab::Specs => {
+                let visible = self.visible_specs();
+                Some(TuiResult {
+                    spec: visible[self.spec_index].name.clone(),
+                    team: self.teams[self.team_index].clone(),
+                    headless: self.prefs.headless,
+                    mode: RunMode::TeamRun,
+                })
+            }
             SpecTab::Requirements => Some(TuiResult {
                 spec: self.requirements[self.requirements_index].name.clone(),
                 team: self.teams[self.team_index].clone(),
-                headless: self.headless,
+                headless: self.prefs.headless,
                 mode: RunMode::DraftRun,
             }),
         }

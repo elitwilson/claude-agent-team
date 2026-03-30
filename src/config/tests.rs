@@ -118,12 +118,10 @@ fn test_parse_frontmatter_status_complete() {
 }
 
 #[test]
-fn test_parse_frontmatter_status_needs_attention() {
+fn test_parse_frontmatter_status_needs_attention_maps_to_blocked() {
+    // needs_attention is a legacy alias — treated as Blocked for backwards compatibility
     let content = "---\nstatus: needs_attention\n---\n# My Spec";
-    assert_eq!(
-        parse_frontmatter_status(content),
-        SpecStatus::NeedsAttention
-    );
+    assert_eq!(parse_frontmatter_status(content), SpecStatus::Blocked);
 }
 
 #[test]
@@ -153,7 +151,8 @@ fn test_parse_frontmatter_status_empty_frontmatter() {
 // --- Spec discovery with status filtering tests ---
 
 #[test]
-fn test_discover_specs_filters_out_complete() {
+fn test_discover_specs_includes_complete() {
+    // Complete specs are no longer filtered at discovery — filtering is the TUI's job
     let dir = create_temp_dir();
     fs::write(
         dir.path().join("001-done.md"),
@@ -167,13 +166,14 @@ fn test_discover_specs_filters_out_complete() {
     .unwrap();
 
     let specs = discover_specs(dir.path()).unwrap();
-    assert_eq!(specs.len(), 1);
-    assert_eq!(specs[0].name, "002-active.md");
-    assert_eq!(specs[0].status, SpecStatus::Ready);
+    assert_eq!(specs.len(), 2);
+    let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&"001-done.md"));
+    assert!(names.contains(&"002-active.md"));
 }
 
 #[test]
-fn test_discover_specs_includes_needs_attention() {
+fn test_discover_specs_includes_needs_attention_as_blocked() {
     let dir = create_temp_dir();
     fs::write(
         dir.path().join("001-broken.md"),
@@ -184,7 +184,7 @@ fn test_discover_specs_includes_needs_attention() {
     let specs = discover_specs(dir.path()).unwrap();
     assert_eq!(specs.len(), 1);
     assert_eq!(specs[0].name, "001-broken.md");
-    assert_eq!(specs[0].status, SpecStatus::NeedsAttention);
+    assert_eq!(specs[0].status, SpecStatus::Blocked);
 }
 
 #[test]

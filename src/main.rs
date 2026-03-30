@@ -1,5 +1,6 @@
 mod config;
 mod install;
+mod prefs;
 mod metrics;
 mod preflight;
 mod prompt;
