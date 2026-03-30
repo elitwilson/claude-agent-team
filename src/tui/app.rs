@@ -279,6 +279,8 @@ pub struct App {
     pub screen: Screen,
     pub metrics_state: Option<MetricsState>,
     pub popup: Option<PopupAction>,
+    pub picker: SchedulePickerState,
+    pub scheduled_at: Option<DateTime<Local>>,
 }
 
 impl App {
@@ -308,6 +310,8 @@ impl App {
             screen: Screen::Launcher,
             metrics_state: None,
             popup: None,
+            picker: SchedulePickerState::default(),
+            scheduled_at: None,
         }
     }
 
@@ -438,17 +442,7 @@ impl App {
     /// is Complete or Blocked.
     pub fn confirm(&mut self) {
         match self.active_tab {
-            SpecTab::Specs => {
-                let visible = self.visible_specs();
-                if visible.is_empty() {
-                    return;
-                }
-                let selected = visible[self.spec_index];
-                if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
-                    return;
-                }
-                self.confirmed = true;
-            }
+            SpecTab::Specs => self.open_action_popup(),
             SpecTab::Requirements => {
                 if !self.requirements.is_empty() {
                     self.confirmed = true;
@@ -519,12 +513,20 @@ impl App {
         match action {
             PopupAction::ActionDialog { selected } => match selected {
                 ActionChoice::ExecuteNow => {
-                    self.confirm();
+                    self.confirmed = true;
                 }
                 ActionChoice::ScheduleLater => {
                     self.screen = Screen::SchedulePicker;
                 }
             },
+        }
+    }
+
+    /// Confirm the schedule picker: store the datetime and exit.
+    pub fn confirm_picker(&mut self) {
+        if let Some(dt) = self.picker.confirm() {
+            self.scheduled_at = Some(dt);
+            self.confirmed = true;
         }
     }
 
@@ -541,7 +543,7 @@ impl App {
                     team: self.teams[self.team_index].clone(),
                     headless: self.prefs.headless,
                     mode: RunMode::TeamRun,
-                    scheduled_at: None,
+                    scheduled_at: self.scheduled_at,
                 })
             }
             SpecTab::Requirements => Some(TuiResult {

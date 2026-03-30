@@ -17,8 +17,9 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
-use super::app::{App, OPTIONS_ITEMS, Panel, RunMode, Screen, SpecTab, TuiResult};
+use super::app::{App, OPTIONS_ITEMS, Panel, RunMode, Screen, SchedulePickerState, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
+use super::schedule_picker::render_schedule_picker;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::metrics::db::init_db;
 use crate::metrics::query::fetch_runs;
@@ -61,6 +62,13 @@ where
 
         if let Event::Key(key) = event::read()? {
             match app.screen {
+                Screen::Launcher if app.popup.is_some() => match key.code {
+                    KeyCode::Up => app.popup_move_up(),
+                    KeyCode::Down => app.popup_move_down(),
+                    KeyCode::Enter => app.confirm_popup(),
+                    KeyCode::Esc => app.dismiss_popup(),
+                    _ => {}
+                },
                 Screen::Launcher => match key.code {
                     KeyCode::Char('q') | KeyCode::Char('Q') => {
                         app.should_quit = true;
@@ -91,7 +99,13 @@ where
                 Screen::SchedulePicker => match key.code {
                     KeyCode::Esc => {
                         app.screen = Screen::Launcher;
+                        app.picker = SchedulePickerState::default();
                     }
+                    KeyCode::Tab => app.picker.next_field(),
+                    KeyCode::BackTab => app.picker.prev_field(),
+                    KeyCode::Up => app.picker.increment(),
+                    KeyCode::Down => app.picker.decrement(),
+                    KeyCode::Enter => app.confirm_picker(),
                     _ => {}
                 },
             }
@@ -146,6 +160,11 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         }
         Screen::Launcher => {}
         Screen::SchedulePicker => {
+            let spec_name = app.visible_specs()
+                .get(app.spec_index)
+                .map(|s| s.name.as_str())
+                .unwrap_or("");
+            render_schedule_picker(f, &app.picker, spec_name);
             return;
         }
     }

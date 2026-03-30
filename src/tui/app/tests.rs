@@ -320,6 +320,7 @@ fn test_toggle_headless() {
 fn test_confirm_sets_confirmed_flag() {
     let mut app = sample_app();
     app.confirm();
+    app.confirm_popup(); // ExecuteNow selected by default
     assert!(app.confirmed);
 }
 
@@ -336,6 +337,7 @@ fn test_result_returns_selection_when_confirmed() {
     app.team_index = 0;
     app.prefs.headless = true;
     app.confirm();
+    app.confirm_popup();
 
     let result = app.result().unwrap();
     assert_eq!(result.spec, "feature-b.md");
@@ -467,6 +469,7 @@ fn test_result_returns_spec_name_not_entry() {
     let mut app = sample_app_with_entries();
     app.spec_index = 0;
     app.confirm();
+    app.confirm_popup();
     let result = app.result().unwrap();
     assert_eq!(result.spec, "004-active.md");
 }
@@ -590,6 +593,7 @@ fn test_confirm_on_specs_tab_returns_team_run_mode() {
     let mut app = app_with_mixed_entries();
     assert_eq!(app.active_tab, SpecTab::Specs);
     app.confirm();
+    app.confirm_popup();
     let result = app.result().unwrap();
     assert_eq!(result.mode, RunMode::TeamRun);
     assert_eq!(result.spec, "001-spec.md");
@@ -711,6 +715,7 @@ fn test_smoke_launcher_unchanged_after_metrics_roundtrip() {
 fn test_tui_result_scheduled_at_is_none_for_immediate_run() {
     let mut app = sample_app();
     app.confirm();
+    app.confirm_popup(); // ExecuteNow — scheduled_at should remain None
     let result = app.result().unwrap();
     assert!(result.scheduled_at.is_none());
 }
@@ -729,6 +734,7 @@ fn test_tui_result_can_hold_scheduled_datetime() {
     use chrono::Local;
     let mut app = sample_app();
     app.confirm();
+    app.confirm_popup();
     let mut result = app.result().unwrap();
     // Verify the field exists and can be set
     let now = Local::now();
