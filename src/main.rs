@@ -41,6 +41,11 @@ fn run() -> Result<()> {
         return install::run_install();
     }
 
+    if !install::is_installed() {
+        println!("First-time setup: linking rules and registering hooks in ~/.claude");
+        install::run_install()?;
+    }
+
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
 
     // Load config (falls back to defaults if no .claude-agent-team.toml)

@@ -2,33 +2,16 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-/// Resolve the workflow directory for install purposes.
-/// Checks `CLAUDE_AGENT_TEAM_DIR` first, then falls back to the directory
-/// containing the current executable.
-pub fn resolve_install_dir() -> Result<PathBuf> {
-    if let Ok(dir) = std::env::var("CLAUDE_AGENT_TEAM_DIR") {
-        let path = PathBuf::from(&dir);
-        if path.join("rules").exists() {
-            return Ok(path);
-        }
-        eprintln!(
-            "Warning: CLAUDE_AGENT_TEAM_DIR={dir} has no rules/ subdirectory, falling back."
-        );
-    }
-
-    let exe = std::env::current_exe().context("Failed to get current executable path")?;
-    let dir = exe
-        .parent()
-        .context("Executable has no parent directory")?
-        .to_path_buf();
-
-    if dir.join("rules").exists() {
-        return Ok(dir);
-    }
-
-    bail!(
-        "Could not find rules/ directory. Set CLAUDE_AGENT_TEAM_DIR to the repo root and retry."
-    );
+/// Returns true if claude-bros has already been installed (hooks registered + rules symlinked).
+pub fn is_installed() -> bool {
+    let Ok(home) = std::env::var("HOME") else {
+        return false;
+    };
+    let link = Path::new(&home)
+        .join(".claude")
+        .join("rules")
+        .join("agent-workflow");
+    link.is_symlink() || link.is_dir()
 }
 
 /// Symlink <workflow_dir>/rules into <claude_dir>/rules/agent-workflow.
@@ -128,6 +111,12 @@ pub fn register_hooks(workflow_dir: &Path, settings_path: &Path) -> Result<()> {
     }
 
     if changed {
+        if settings_path.exists() {
+            let backup = settings_path.with_extension("json.bak");
+            std::fs::copy(settings_path, &backup).with_context(|| {
+                format!("Failed to back up settings.json to {}", backup.display())
+            })?;
+        }
         let text = serde_json::to_string_pretty(&settings)
             .context("Failed to serialize settings.json")?;
         std::fs::write(settings_path, text).context("Failed to write settings.json")?;
@@ -141,7 +130,8 @@ pub fn register_hooks(workflow_dir: &Path, settings_path: &Path) -> Result<()> {
 
 /// Run the full install sequence.
 pub fn run_install() -> Result<()> {
-    let workflow_dir = resolve_install_dir()?;
+    let workflow_dir_str = crate::prompt::resolve_workflow_dir()?;
+    let workflow_dir = PathBuf::from(&workflow_dir_str);
     println!("Installing from: {}", workflow_dir.display());
 
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
