@@ -1,4 +1,5 @@
 mod config;
+mod install;
 mod metrics;
 mod preflight;
 mod prompt;
@@ -19,6 +20,10 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+    if std::env::args().any(|a| a == "--install") {
+        return install::run_install();
+    }
+
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
 
     // Load config (falls back to defaults if no .claude-agent-team.toml)
