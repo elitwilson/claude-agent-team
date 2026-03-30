@@ -114,7 +114,7 @@ fn run() -> Result<()> {
         scheduler::schedule_run(
             &feature_slug,
             &selection.team,
-            selection.headless,
+            true, // scheduled runs are always headless — no terminal available
             Path::new(&cwd),
             scheduled_at,
         )
