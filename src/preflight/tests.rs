@@ -4,12 +4,12 @@ use super::*;
 
 #[test]
 fn test_build_branch_name_format() {
-    let name = build_branch_name("my-feature", "20260327");
-    assert_eq!(name, "feature/my-feature-20260327");
+    let name = build_branch_name("my-feature");
+    assert_eq!(name, "feature/my-feature");
 }
 
 #[test]
 fn test_build_branch_name_with_different_slug() {
-    let name = build_branch_name("claude-bros", "20260101");
-    assert_eq!(name, "feature/claude-bros-20260101");
+    let name = build_branch_name("claude-bros");
+    assert_eq!(name, "feature/claude-bros");
 }

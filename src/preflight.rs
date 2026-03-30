@@ -1,19 +1,17 @@
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
-use chrono::Local;
 
-/// Build the feature branch name from the slug and today's date (YYYYMMDD).
-pub fn build_branch_name(feature_slug: &str, date: &str) -> String {
-    format!("feature/{feature_slug}-{date}")
+/// Build the feature branch name from the slug.
+pub fn build_branch_name(feature_slug: &str) -> String {
+    format!("feature/{feature_slug}")
 }
 
 /// Run preflight checks: ensure clean working tree, checkout base branch, pull, create feature branch.
 pub fn run_preflight(base_branch: &str, feature_slug: &str) -> Result<String> {
     check_clean_working_tree()?;
 
-    let date = Local::now().format("%Y%m%d").to_string();
-    let branch_name = build_branch_name(feature_slug, &date);
+    let branch_name = build_branch_name(feature_slug);
 
     // Checkout base branch
     run_git(&["checkout", base_branch])
@@ -41,15 +39,6 @@ pub fn check_clean_working_tree() -> Result<()> {
         bail!("Working tree is not clean. Please commit or stash your changes first.");
     }
     Ok(())
-}
-
-/// Create a feature branch from the base branch.
-pub fn create_feature_branch(base_branch: &str, feature_slug: &str) -> Result<String> {
-    let date = Local::now().format("%Y%m%d").to_string();
-    let branch_name = build_branch_name(feature_slug, &date);
-    run_git(&["checkout", base_branch])?;
-    run_git(&["checkout", "-b", &branch_name])?;
-    Ok(branch_name)
 }
 
 fn run_git(args: &[&str]) -> Result<()> {
