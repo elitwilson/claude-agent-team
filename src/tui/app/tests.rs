@@ -1,6 +1,7 @@
 use super::*;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
+use chrono::Timelike;
 
 fn spec(name: &str) -> SpecEntry {
     SpecEntry {
@@ -1101,4 +1102,128 @@ fn test_picker_day_clamped_when_year_changes_feb_29() {
     state.increment(); // 2029 is not a leap year
     assert_eq!(state.year, 2029);
     assert_eq!(state.day, 28);
+}
+
+// --- Validation and 12→24hr conversion ---
+
+#[test]
+fn test_validate_12_to_24hr_12am_is_midnight() {
+    // 12:00 AM = 00:00
+    let mut state = SchedulePickerState::default();
+    state.hour = 12;
+    state.minute = 0;
+    state.am_pm = AmPm::Am;
+    let time = state.to_naive_time();
+    assert_eq!(time.hour(), 0);
+    assert_eq!(time.minute(), 0);
+}
+
+#[test]
+fn test_validate_12_to_24hr_12pm_is_noon() {
+    // 12:00 PM = 12:00
+    let mut state = SchedulePickerState::default();
+    state.hour = 12;
+    state.minute = 0;
+    state.am_pm = AmPm::Pm;
+    let time = state.to_naive_time();
+    assert_eq!(time.hour(), 12);
+    assert_eq!(time.minute(), 0);
+}
+
+#[test]
+fn test_validate_12_to_24hr_1159pm_is_2359() {
+    // 11:59 PM = 23:59
+    let mut state = SchedulePickerState::default();
+    state.hour = 11;
+    state.minute = 59;
+    state.am_pm = AmPm::Pm;
+    let time = state.to_naive_time();
+    assert_eq!(time.hour(), 23);
+    assert_eq!(time.minute(), 59);
+}
+
+#[test]
+fn test_validate_12_to_24hr_1am_is_0100() {
+    // 1:00 AM = 01:00
+    let mut state = SchedulePickerState::default();
+    state.hour = 1;
+    state.minute = 0;
+    state.am_pm = AmPm::Am;
+    let time = state.to_naive_time();
+    assert_eq!(time.hour(), 1);
+    assert_eq!(time.minute(), 0);
+}
+
+#[test]
+fn test_validate_past_datetime_sets_error() {
+    use chrono::{Duration, Local};
+    let past = Local::now() - Duration::hours(1);
+    let mut state = SchedulePickerState::default();
+    state.month = past.month();
+    state.day = past.day();
+    state.year = past.year();
+    // Set time to 1 hour ago via 12hr fields
+    let hour_24 = past.hour();
+    state.am_pm = if hour_24 < 12 { AmPm::Am } else { AmPm::Pm };
+    state.hour = if hour_24 == 0 {
+        12
+    } else if hour_24 > 12 {
+        hour_24 - 12
+    } else {
+        hour_24
+    };
+    state.minute = past.minute();
+
+    let result = state.confirm();
+    assert!(result.is_none());
+    assert!(state.error.is_some());
+    assert!(state.error.as_ref().unwrap().contains("future"));
+}
+
+#[test]
+fn test_validate_less_than_1_minute_future_sets_error() {
+    use chrono::{Duration, Local};
+    let soon = Local::now() + Duration::seconds(30);
+    let mut state = SchedulePickerState::default();
+    state.month = soon.month();
+    state.day = soon.day();
+    state.year = soon.year();
+    let hour_24 = soon.hour();
+    state.am_pm = if hour_24 < 12 { AmPm::Am } else { AmPm::Pm };
+    state.hour = if hour_24 == 0 {
+        12
+    } else if hour_24 > 12 {
+        hour_24 - 12
+    } else {
+        hour_24
+    };
+    state.minute = soon.minute();
+
+    let result = state.confirm();
+    assert!(result.is_none());
+    assert!(state.error.is_some());
+}
+
+#[test]
+fn test_validate_valid_future_datetime_returns_scheduled_at() {
+    use chrono::{Duration, Local};
+    let future = Local::now() + Duration::hours(2);
+    let mut state = SchedulePickerState::default();
+    state.month = future.month();
+    state.day = future.day();
+    state.year = future.year();
+    let hour_24 = future.hour();
+    state.am_pm = if hour_24 < 12 { AmPm::Am } else { AmPm::Pm };
+    state.hour = if hour_24 == 0 {
+        12
+    } else if hour_24 > 12 {
+        hour_24 - 12
+    } else {
+        hour_24
+    };
+    state.minute = future.minute();
+
+    let result = state.confirm();
+    assert!(result.is_some());
+    assert!(state.error.is_none());
 }

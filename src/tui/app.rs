@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, Local, NaiveDate};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone};
 
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
@@ -169,6 +169,42 @@ impl SchedulePickerState {
                 };
             }
         }
+    }
+
+    /// Convert the 12-hour fields to a `NaiveTime` in 24-hour format.
+    pub fn to_naive_time(&self) -> NaiveTime {
+        let hour_24 = match (self.am_pm, self.hour) {
+            (AmPm::Am, 12) => 0,     // 12 AM = midnight
+            (AmPm::Am, h) => h,      // 1-11 AM = 1-11
+            (AmPm::Pm, 12) => 12,    // 12 PM = noon
+            (AmPm::Pm, h) => h + 12, // 1-11 PM = 13-23
+        };
+        NaiveTime::from_hms_opt(hour_24, self.minute, 0).unwrap()
+    }
+
+    /// Validate and confirm the picker selection.
+    /// Returns `Some(DateTime<Local>)` if the datetime is at least 1 minute in the future.
+    /// Sets `self.error` and returns `None` otherwise.
+    pub fn confirm(&mut self) -> Option<DateTime<Local>> {
+        let date = NaiveDate::from_ymd_opt(self.year, self.month, self.day).unwrap();
+        let time = self.to_naive_time();
+        let naive_dt = date.and_time(time);
+        let local_dt = match Local.from_local_datetime(&naive_dt).single() {
+            Some(dt) => dt,
+            None => {
+                self.error = Some("Invalid date/time".to_string());
+                return None;
+            }
+        };
+
+        let now = Local::now();
+        if local_dt < now + Duration::minutes(1) {
+            self.error = Some("Scheduled time must be in the future".to_string());
+            return None;
+        }
+
+        self.error = None;
+        Some(local_dt)
     }
 
     /// Clamp day to valid range for the current month/year.
