@@ -1,3 +1,5 @@
+use chrono::{DateTime, Local};
+
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
@@ -38,6 +40,7 @@ pub struct TuiResult {
     pub team: String,
     pub headless: bool,
     pub mode: RunMode,
+    pub scheduled_at: Option<DateTime<Local>>,
 }
 
 /// Labels for each item in the Options panel, in order.
@@ -70,8 +73,9 @@ impl App {
         prefs: Prefs,
     ) -> Self {
         let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
-        let (requirements, specs): (Vec<SpecEntry>, Vec<SpecEntry>) =
-            all_entries.into_iter().partition(|e| e.status == SpecStatus::Raw);
+        let (requirements, specs): (Vec<SpecEntry>, Vec<SpecEntry>) = all_entries
+            .into_iter()
+            .partition(|e| e.status == SpecStatus::Raw);
         Self {
             specs,
             requirements,
@@ -260,6 +264,7 @@ impl App {
                     team: self.teams[self.team_index].clone(),
                     headless: self.prefs.headless,
                     mode: RunMode::TeamRun,
+                    scheduled_at: None,
                 })
             }
             SpecTab::Requirements => Some(TuiResult {
@@ -267,6 +272,7 @@ impl App {
                 team: self.teams[self.team_index].clone(),
                 headless: self.prefs.headless,
                 mode: RunMode::DraftRun,
+                scheduled_at: None,
             }),
         }
     }

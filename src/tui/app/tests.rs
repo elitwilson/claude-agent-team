@@ -203,9 +203,18 @@ fn test_toggle_option_show_blocked_at_index_2() {
 fn test_visible_specs_includes_all_by_default() {
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
-            SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+            SpecEntry {
+                name: "a.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "b.md".into(),
+                status: SpecStatus::Complete,
+            },
+            SpecEntry {
+                name: "c.md".into(),
+                status: SpecStatus::Blocked,
+            },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -220,8 +229,14 @@ fn test_visible_specs_hides_complete_when_show_complete_false() {
     prefs.show_complete = false;
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
+            SpecEntry {
+                name: "a.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "b.md".into(),
+                status: SpecStatus::Complete,
+            },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -238,8 +253,14 @@ fn test_visible_specs_hides_blocked_when_show_blocked_false() {
     prefs.show_blocked = false;
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Blocked },
+            SpecEntry {
+                name: "a.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "b.md".into(),
+                status: SpecStatus::Blocked,
+            },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -254,9 +275,18 @@ fn test_visible_specs_hides_blocked_when_show_blocked_false() {
 fn test_spec_index_clamped_after_filter_hides_selected_item() {
     // 3 specs, cursor at index 2; hide blocked, which removes the last item
     let app_entries = vec![
-        SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-        SpecEntry { name: "b.md".into(), status: SpecStatus::Ready },
-        SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+        SpecEntry {
+            name: "a.md".into(),
+            status: SpecStatus::Ready,
+        },
+        SpecEntry {
+            name: "b.md".into(),
+            status: SpecStatus::Ready,
+        },
+        SpecEntry {
+            name: "c.md".into(),
+            status: SpecStatus::Blocked,
+        },
     ];
     let mut app = App::new(
         app_entries,
@@ -408,8 +438,14 @@ fn test_move_down_on_metrics_screen_scrolls() {
 fn sample_app_with_entries() -> App {
     App::new(
         vec![
-            SpecEntry { name: "004-active.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "005-broken.md".into(), status: SpecStatus::Blocked },
+            SpecEntry {
+                name: "004-active.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "005-broken.md".into(),
+                status: SpecStatus::Blocked,
+            },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -439,7 +475,10 @@ fn test_blocked_spec_is_navigable() {
     let mut app = sample_app_with_entries();
     app.move_down();
     assert_eq!(app.spec_index, 1);
-    assert_eq!(app.visible_specs()[app.spec_index].status, SpecStatus::Blocked);
+    assert_eq!(
+        app.visible_specs()[app.spec_index].status,
+        SpecStatus::Blocked
+    );
 }
 
 // --- Requirements tab ---
@@ -447,10 +486,22 @@ fn test_blocked_spec_is_navigable() {
 fn app_with_mixed_entries() -> App {
     App::new(
         vec![
-            SpecEntry { name: "001-spec.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "email.txt".into(), status: SpecStatus::Raw },
-            SpecEntry { name: "002-spec.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "notes.md".into(), status: SpecStatus::Raw },
+            SpecEntry {
+                name: "001-spec.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "email.txt".into(),
+                status: SpecStatus::Raw,
+            },
+            SpecEntry {
+                name: "002-spec.md".into(),
+                status: SpecStatus::Ready,
+            },
+            SpecEntry {
+                name: "notes.md".into(),
+                status: SpecStatus::Raw,
+            },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -479,7 +530,10 @@ fn test_app_splits_non_raw_entries_into_specs() {
 #[test]
 fn test_blocked_spec_is_not_confirmable() {
     let mut app = App::new(
-        vec![SpecEntry { name: "003-blocked.md".into(), status: SpecStatus::Blocked }],
+        vec![SpecEntry {
+            name: "003-blocked.md".into(),
+            status: SpecStatus::Blocked,
+        }],
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
@@ -492,7 +546,10 @@ fn test_blocked_spec_is_not_confirmable() {
 #[test]
 fn test_complete_spec_is_not_confirmable() {
     let mut app = App::new(
-        vec![SpecEntry { name: "done.md".into(), status: SpecStatus::Complete }],
+        vec![SpecEntry {
+            name: "done.md".into(),
+            status: SpecStatus::Complete,
+        }],
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
@@ -645,4 +702,35 @@ fn test_smoke_launcher_unchanged_after_metrics_roundtrip() {
     assert_eq!(app.team_index, original_team_index);
     assert!(!app.should_quit);
     assert!(!app.confirmed);
+}
+
+// --- TuiResult scheduled_at field ---
+
+#[test]
+fn test_tui_result_scheduled_at_is_none_for_immediate_run() {
+    let mut app = sample_app();
+    app.confirm();
+    let result = app.result().unwrap();
+    assert!(result.scheduled_at.is_none());
+}
+
+#[test]
+fn test_tui_result_scheduled_at_is_none_for_draft_run() {
+    let mut app = app_with_mixed_entries();
+    app.switch_tab();
+    app.confirm();
+    let result = app.result().unwrap();
+    assert!(result.scheduled_at.is_none());
+}
+
+#[test]
+fn test_tui_result_can_hold_scheduled_datetime() {
+    use chrono::Local;
+    let mut app = sample_app();
+    app.confirm();
+    let mut result = app.result().unwrap();
+    // Verify the field exists and can be set
+    let now = Local::now();
+    result.scheduled_at = Some(now);
+    assert!(result.scheduled_at.is_some());
 }
