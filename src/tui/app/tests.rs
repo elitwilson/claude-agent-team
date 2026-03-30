@@ -734,3 +734,113 @@ fn test_tui_result_can_hold_scheduled_datetime() {
     result.scheduled_at = Some(now);
     assert!(result.scheduled_at.is_some());
 }
+
+// --- Action popup ---
+
+#[test]
+fn test_app_popup_is_none_by_default() {
+    let app = sample_app();
+    assert!(app.popup.is_none());
+}
+
+#[test]
+fn test_open_action_popup_on_ready_spec() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    assert!(app.popup.is_some());
+    match app.popup.as_ref().unwrap() {
+        PopupAction::ActionDialog { selected } => {
+            assert_eq!(*selected, ActionChoice::ExecuteNow);
+        }
+    }
+}
+
+#[test]
+fn test_action_popup_not_opened_on_requirements_tab() {
+    let mut app = app_with_mixed_entries();
+    app.switch_tab(); // switch to Requirements
+    app.open_action_popup();
+    assert!(app.popup.is_none());
+}
+
+#[test]
+fn test_action_popup_navigate_down_selects_schedule_later() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    app.popup_move_down();
+    match app.popup.as_ref().unwrap() {
+        PopupAction::ActionDialog { selected } => {
+            assert_eq!(*selected, ActionChoice::ScheduleLater);
+        }
+    }
+}
+
+#[test]
+fn test_action_popup_navigate_up_selects_execute_now() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    app.popup_move_down(); // go to ScheduleLater
+    app.popup_move_up(); // back to ExecuteNow
+    match app.popup.as_ref().unwrap() {
+        PopupAction::ActionDialog { selected } => {
+            assert_eq!(*selected, ActionChoice::ExecuteNow);
+        }
+    }
+}
+
+#[test]
+fn test_action_popup_navigate_down_clamps_at_bottom() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    app.popup_move_down(); // ScheduleLater
+    app.popup_move_down(); // should stay at ScheduleLater
+    match app.popup.as_ref().unwrap() {
+        PopupAction::ActionDialog { selected } => {
+            assert_eq!(*selected, ActionChoice::ScheduleLater);
+        }
+    }
+}
+
+#[test]
+fn test_action_popup_navigate_up_clamps_at_top() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    app.popup_move_up(); // should stay at ExecuteNow
+    match app.popup.as_ref().unwrap() {
+        PopupAction::ActionDialog { selected } => {
+            assert_eq!(*selected, ActionChoice::ExecuteNow);
+        }
+    }
+}
+
+#[test]
+fn test_action_popup_escape_dismisses() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    assert!(app.popup.is_some());
+    app.dismiss_popup();
+    assert!(app.popup.is_none());
+    assert!(!app.confirmed);
+    assert_eq!(app.screen, Screen::Launcher);
+}
+
+#[test]
+fn test_action_popup_confirm_execute_now_sets_confirmed() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    // Default is ExecuteNow
+    app.confirm_popup();
+    assert!(app.popup.is_none());
+    assert!(app.confirmed);
+}
+
+#[test]
+fn test_action_popup_confirm_schedule_later_opens_picker() {
+    let mut app = sample_app();
+    app.open_action_popup();
+    app.popup_move_down(); // select ScheduleLater
+    app.confirm_popup();
+    assert!(app.popup.is_none());
+    assert_eq!(app.screen, Screen::SchedulePicker);
+    assert!(!app.confirmed);
+}

@@ -9,6 +9,20 @@ use crate::prefs::Prefs;
 pub enum Screen {
     Launcher,
     Metrics,
+    SchedulePicker,
+}
+
+/// The action popup shown when pressing Enter on a Ready spec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopupAction {
+    ActionDialog { selected: ActionChoice },
+}
+
+/// Choices available in the action popup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionChoice {
+    ExecuteNow,
+    ScheduleLater,
 }
 
 /// Which panel is currently focused in the TUI.
@@ -63,6 +77,7 @@ pub struct App {
     pub confirmed: bool,
     pub screen: Screen,
     pub metrics_state: Option<MetricsState>,
+    pub popup: Option<PopupAction>,
 }
 
 impl App {
@@ -91,6 +106,7 @@ impl App {
             confirmed: false,
             screen: Screen::Launcher,
             metrics_state: None,
+            popup: None,
         }
     }
 
@@ -249,6 +265,66 @@ impl App {
     /// Return to the launcher from the metrics screen.
     pub fn close_metrics(&mut self) {
         self.screen = Screen::Launcher;
+    }
+
+    /// Open the action popup for the currently selected spec.
+    /// No-op if on the Requirements tab.
+    pub fn open_action_popup(&mut self) {
+        if self.active_tab == SpecTab::Requirements {
+            return;
+        }
+        let visible = self.visible_specs();
+        if visible.is_empty() {
+            return;
+        }
+        let selected = visible[self.spec_index];
+        if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
+            return;
+        }
+        self.popup = Some(PopupAction::ActionDialog {
+            selected: ActionChoice::ExecuteNow,
+        });
+    }
+
+    /// Dismiss the popup without taking action.
+    pub fn dismiss_popup(&mut self) {
+        self.popup = None;
+    }
+
+    /// Move selection down within the popup.
+    pub fn popup_move_down(&mut self) {
+        if let Some(PopupAction::ActionDialog { ref mut selected }) = self.popup {
+            if *selected == ActionChoice::ExecuteNow {
+                *selected = ActionChoice::ScheduleLater;
+            }
+        }
+    }
+
+    /// Move selection up within the popup.
+    pub fn popup_move_up(&mut self) {
+        if let Some(PopupAction::ActionDialog { ref mut selected }) = self.popup {
+            if *selected == ActionChoice::ScheduleLater {
+                *selected = ActionChoice::ExecuteNow;
+            }
+        }
+    }
+
+    /// Confirm the popup selection.
+    pub fn confirm_popup(&mut self) {
+        let action = match self.popup.take() {
+            Some(a) => a,
+            None => return,
+        };
+        match action {
+            PopupAction::ActionDialog { selected } => match selected {
+                ActionChoice::ExecuteNow => {
+                    self.confirm();
+                }
+                ActionChoice::ScheduleLater => {
+                    self.screen = Screen::SchedulePicker;
+                }
+            },
+        }
     }
 
     /// Get the selected result, if confirmed.

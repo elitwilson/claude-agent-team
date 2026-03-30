@@ -69,9 +69,7 @@ where
                         load_metrics(app);
                     }
                     KeyCode::Tab => app.next_panel(),
-                    KeyCode::Left | KeyCode::Right
-                        if app.focused_panel == Panel::Spec =>
-                    {
+                    KeyCode::Left | KeyCode::Right if app.focused_panel == Panel::Spec => {
                         app.switch_tab();
                     }
                     KeyCode::Up => app.move_up(),
@@ -88,6 +86,12 @@ where
                     }
                     KeyCode::Up => app.move_up(),
                     KeyCode::Down => app.move_down(),
+                    _ => {}
+                },
+                Screen::SchedulePicker => match key.code {
+                    KeyCode::Esc => {
+                        app.screen = Screen::Launcher;
+                    }
                     _ => {}
                 },
             }
@@ -141,6 +145,9 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             return;
         }
         Screen::Launcher => {}
+        Screen::SchedulePicker => {
+            return;
+        }
     }
 
     let chunks = Layout::default()
@@ -164,7 +171,10 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             Span::raw(" Specs ")
         };
         let reqs_label = if app.active_tab == SpecTab::Requirements {
-            Span::styled(" Raw Inputs ", Style::default().add_modifier(Modifier::BOLD))
+            Span::styled(
+                " Raw Inputs ",
+                Style::default().add_modifier(Modifier::BOLD),
+            )
         } else {
             Span::raw(" Raw Inputs ")
         };
@@ -198,12 +208,8 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                     .map(|s| {
                         let item = ListItem::new(s.name.as_str());
                         match s.status {
-                            SpecStatus::Complete => {
-                                item.style(Style::default().fg(Color::Green))
-                            }
-                            SpecStatus::Blocked => {
-                                item.style(Style::default().fg(Color::Red))
-                            }
+                            SpecStatus::Complete => item.style(Style::default().fg(Color::Green)),
+                            SpecStatus::Blocked => item.style(Style::default().fg(Color::Red)),
                             _ => item,
                         }
                     })
@@ -279,7 +285,11 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Options")
-                .border_style(if options_focused { focused_style } else { normal_style }),
+                .border_style(if options_focused {
+                    focused_style
+                } else {
+                    normal_style
+                }),
         )
         .highlight_symbol("> ")
         .highlight_style(if options_focused {
@@ -299,9 +309,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             "  \u{2191}\u{2193} navigate  \u{2190}\u{2192} switch tab  Tab panel  Enter confirm  q quit"
         }
         Panel::Team => "  \u{2191}\u{2193} navigate  Tab panel  Enter confirm  q quit",
-        Panel::Options => {
-            "  \u{2191}\u{2193} navigate  Space toggle  Tab panel  q quit"
-        }
+        Panel::Options => "  \u{2191}\u{2193} navigate  Space toggle  Tab panel  q quit",
     };
     f.render_widget(Paragraph::new(Line::from(footer_text)), chunks[3]);
 }
