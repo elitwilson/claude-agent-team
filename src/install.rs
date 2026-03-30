@@ -117,8 +117,8 @@ pub fn register_hooks(workflow_dir: &Path, settings_path: &Path) -> Result<()> {
                 format!("Failed to back up settings.json to {}", backup.display())
             })?;
         }
-        let text = serde_json::to_string_pretty(&settings)
-            .context("Failed to serialize settings.json")?;
+        let text =
+            serde_json::to_string_pretty(&settings).context("Failed to serialize settings.json")?;
         std::fs::write(settings_path, text).context("Failed to write settings.json")?;
         println!("  registered hooks in settings.json");
     } else {

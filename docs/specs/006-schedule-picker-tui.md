@@ -1,6 +1,6 @@
 ---
 number: 006
-status: ready
+status: complete
 ---
 
 # Feature: Schedule Picker TUI

@@ -242,7 +242,11 @@ fn test_discover_specs_includes_txt_file_as_raw() {
 #[test]
 fn test_discover_specs_includes_md_without_frontmatter_as_raw() {
     let dir = create_temp_dir();
-    fs::write(dir.path().join("notes.md"), "# Rough notes\n\nAdd filtering.").unwrap();
+    fs::write(
+        dir.path().join("notes.md"),
+        "# Rough notes\n\nAdd filtering.",
+    )
+    .unwrap();
 
     let specs = discover_specs(dir.path()).unwrap();
     assert_eq!(specs.len(), 1);
@@ -253,8 +257,16 @@ fn test_discover_specs_includes_md_without_frontmatter_as_raw() {
 #[test]
 fn test_discover_specs_skips_binary_files() {
     let dir = create_temp_dir();
-    fs::write(dir.path().join("image.png"), &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
-    fs::write(dir.path().join("spec.md"), "---\nstatus: ready\n---\n# Real spec").unwrap();
+    fs::write(
+        dir.path().join("image.png"),
+        &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("spec.md"),
+        "---\nstatus: ready\n---\n# Real spec",
+    )
+    .unwrap();
 
     let specs = discover_specs(dir.path()).unwrap();
     assert_eq!(specs.len(), 1);

@@ -1,8 +1,8 @@
 mod config;
 mod install;
-mod prefs;
 mod metrics;
 mod preflight;
+mod prefs;
 mod prompt;
 mod run_cmd;
 mod runner;
@@ -86,8 +86,16 @@ fn run() -> Result<()> {
         if oauth_token.is_none() {
             eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
         }
-        runner::run_claude(&rendered_prompt, selection.headless, &log_path, oauth_token.as_deref())?;
-        println!("Drafter run complete. Check {} for the new spec.", config.specs_dir);
+        runner::run_claude(
+            &rendered_prompt,
+            selection.headless,
+            &log_path,
+            oauth_token.as_deref(),
+        )?;
+        println!(
+            "Drafter run complete. Check {} for the new spec.",
+            config.specs_dir
+        );
         return Ok(());
     }
 

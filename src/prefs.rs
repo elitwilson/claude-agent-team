@@ -63,8 +63,7 @@ impl Prefs {
                 .with_context(|| format!("Failed to create {}", parent.display()))?;
         }
         let text = toml::to_string_pretty(self).context("Failed to serialize prefs")?;
-        std::fs::write(path, text)
-            .with_context(|| format!("Failed to write {}", path.display()))
+        std::fs::write(path, text).with_context(|| format!("Failed to write {}", path.display()))
     }
 }
 

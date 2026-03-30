@@ -65,7 +65,7 @@ fn test_load_uses_defaults_for_missing_fields() {
     let prefs = Prefs::load_from_path(&path).unwrap();
     assert!(prefs.headless);
     assert!(prefs.show_complete); // defaults to true
-    assert!(prefs.show_blocked);  // defaults to true
+    assert!(prefs.show_blocked); // defaults to true
 }
 
 // --- Save / round-trip ---

@@ -124,9 +124,7 @@ pub fn render_metrics(f: &mut ratatui::Frame, state: &mut MetricsState) {
         f.render_widget(table, content_area);
     }
 
-    let footer = Paragraph::new(Line::from(
-        "  \u{2191}\u{2193} scroll  q / Esc back",
-    ));
+    let footer = Paragraph::new(Line::from("  \u{2191}\u{2193} scroll  q / Esc back"));
     f.render_widget(footer, footer_area);
 }
 
