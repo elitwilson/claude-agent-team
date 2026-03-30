@@ -11,13 +11,13 @@ use crossterm::{
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
-use super::app::{App, OPTIONS_ITEMS, Panel, RunMode, Screen, SchedulePickerState, SpecTab, TuiResult};
+use super::app::{ActionChoice, App, OPTIONS_ITEMS, Panel, PopupAction, RunMode, Screen, SchedulePickerState, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::config::{SpecEntry, SpecStatus};
@@ -66,7 +66,7 @@ where
                     KeyCode::Up => app.popup_move_up(),
                     KeyCode::Down => app.popup_move_down(),
                     KeyCode::Enter => app.confirm_popup(),
-                    KeyCode::Esc => app.dismiss_popup(),
+                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => app.dismiss_popup(),
                     _ => {}
                 },
                 Screen::Launcher => match key.code {
@@ -331,4 +331,36 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         Panel::Options => "  \u{2191}\u{2193} navigate  Space toggle  Tab panel  q quit",
     };
     f.render_widget(Paragraph::new(Line::from(footer_text)), chunks[3]);
+
+    // --- Action popup overlay ---
+    if let Some(PopupAction::ActionDialog { ref selected }) = app.popup {
+        let area = f.area();
+        let popup_width = 24u16;
+        let popup_height = 6u16;
+        let x = area.width.saturating_sub(popup_width) / 2;
+        let y = area.height.saturating_sub(popup_height) / 2;
+        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
+
+        f.render_widget(Clear, popup_area);
+        f.render_widget(
+            Block::default().borders(Borders::ALL).title(" Action "),
+            popup_area,
+        );
+
+        let inner = Rect::new(popup_area.x + 1, popup_area.y + 1, popup_area.width.saturating_sub(2), popup_area.height.saturating_sub(2));
+        let items: Vec<ListItem> = vec![
+            ListItem::new("  Execute now"),
+            ListItem::new("  Schedule for later"),
+        ];
+        let selected_index = match selected {
+            ActionChoice::ExecuteNow => 0,
+            ActionChoice::ScheduleLater => 1,
+        };
+        let list = List::new(items)
+            .highlight_symbol("> ")
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        let mut list_state = ListState::default();
+        list_state.select(Some(selected_index));
+        f.render_stateful_widget(list, inner, &mut list_state);
+    }
 }
