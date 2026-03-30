@@ -11,21 +11,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use clap::Parser;
 use tui::app::RunMode;
-
-/// claude-bros — launch Claude agent teams against feature specs via an interactive TUI.
-///
-/// Run without arguments to open the TUI and select a spec and team.
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    /// Install claude-bros: symlinks workflow rules into ~/.claude/rules and registers
-    /// Claude Code hooks (TaskCompleted, TaskCreated, TeammateIdle) in ~/.claude/settings.json.
-    /// Safe to run multiple times — skips anything already configured.
-    #[arg(long)]
-    install: bool,
-}
 
 fn main() {
     if let Err(e) = run() {
@@ -35,12 +21,6 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let cli = Cli::parse();
-
-    if cli.install {
-        return install::run_install();
-    }
-
     if !install::is_installed() {
         println!("First-time setup: linking rules and registering hooks in ~/.claude");
         install::run_install()?;

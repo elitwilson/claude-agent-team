@@ -10,21 +10,30 @@ The agent team consists of three roles: a **Lead** that coordinates, a **Coder**
 
 ---
 
-## Prerequisites
+## Installation
 
-- Claude Code CLI (`claude --version`)
-- Rust toolchain (`cargo --version`)
-- macOS (Keychain integration for OAuth token)
+Clone the repo and run the install script:
+
+```bash
+git clone <repo-url>
+cd claude-agent-team-workflow
+./install.sh
+```
+
+This builds the binary and copies it to `/usr/local/bin/claude-bros`.
+
+**Prerequisites:** Claude Code CLI (`claude --version`) and a Rust toolchain (`cargo --version`).
 
 ---
 
-## Building
+## First-time setup
 
-```bash
-cargo build --release
-```
+The first time you run `claude-bros`, it automatically:
 
-The binary is at `target/release/claude-bros`. Add it to your PATH or run via `cargo run` from this repo.
+- Symlinks workflow rules into `~/.claude/rules/agent-workflow` so Claude Code picks them up globally
+- Registers agent coordination hooks in `~/.claude/settings.json` (your existing file is backed up to `settings.json.bak` first)
+
+No action needed — this happens in the background before the TUI opens.
 
 ---
 
@@ -50,15 +59,16 @@ This opens the TUI where you select a spec and a team. On confirm, `claude-bros`
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Navigate list |
-| `Tab` | Switch panel (Spec → Team → Run Options) |
-| `Space` | Toggle headless mode |
+| `Tab` | Switch panel (Spec → Team → Options) |
+| `Space` | Toggle selected option |
+| `←` / `→` | Switch spec tab (Specs / Raw Inputs) |
 | `Enter` | Confirm and start run |
 | `m` | Open metrics viewer |
 | `q` | Quit |
 
 ### Headless mode
 
-Toggle with `Space` in the TUI. Redirects all claude output to a log file instead of the terminal. Useful for overnight runs.
+Toggle in the Options panel. Redirects all Claude output to a log file instead of the terminal. Useful for overnight runs.
 
 Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target project.
 
@@ -103,8 +113,9 @@ status: ready
 | Status | Meaning | Shown in TUI |
 |--------|---------|--------------|
 | `ready` | Ready for implementation | Yes |
-| `needs_attention` | Previous run did not complete | Yes (yellow) |
-| `complete` | Implemented | No |
+| `needs_attention` | Previous run did not complete | Yes |
+| `complete` | Implemented | No (filterable) |
+| `blocked` | Blocked on something external | No (filterable) |
 
 Specs with missing or unrecognized status are treated as `ready`.
 
@@ -124,45 +135,19 @@ Copy `docs/spec-template.md` as your starting point. A spec should include:
 
 ---
 
-## Project Structure
+## Raw Inputs
 
-```
-claude-bros/
-├── src/
-│   ├── main.rs             # Entry point and post-run sequence
-│   ├── config.rs           # Config loading, spec/team discovery, frontmatter parsing
-│   ├── preflight.rs        # Git checks and feature branch creation
-│   ├── runner.rs           # claude process spawning, OAuth token loading
-│   ├── prompt.rs           # Prompt template loading and variable substitution
-│   ├── tui/                # Terminal UI (ratatui)
-│   │   ├── app.rs          # TUI application state
-│   │   ├── ui.rs           # Rendering and event loop
-│   │   └── metrics.rs      # Metrics screen
-│   └── metrics/            # Token metrics collection
-│       ├── parser.rs       # JSONL discovery and token extraction
-│       └── db.rs           # SQLite schema and writes
-│
-├── prompts/
-│   └── teams/
-│       └── feature-dev.md  # Lead agent initialization prompt
-│
-├── docs/
-│   ├── spec-template.md    # Copy this when writing a new spec
-│   ├── specs/              # Feature specs (00N-<slug>.md)
-│   └── roles/
-│       └── feature-dev/    # Role definitions
-│           ├── lead.md
-│           ├── coder.md
-│           └── reviewer.md
-│
-└── rules/                  # Symlink into ~/.claude/rules/ for project-wide rules
-```
+The **Raw Inputs** tab shows any Markdown files in your specs directory that have no frontmatter. These are rough notes or requirements that aren't yet formatted as specs.
+
+Selecting a raw input file and pressing `Enter` hands it to the **Drafter** agent, which reads your notes and produces a properly structured spec in the specs directory. From there you can review, edit, and run it as normal.
+
+This is useful when you want to brain-dump requirements without worrying about spec format up front.
 
 ---
 
 ## How It Works
 
-1. **TUI** — select a spec and team; specs with `status: complete` are hidden
+1. **TUI** — select a spec and team; specs with `status: complete` or `blocked` are hidden by default (toggle in Options)
 2. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
 3. **Agent team** — Lead reads the spec and role definitions, spawns Coder and Reviewer, coordinates a TDD loop per task
 4. **TDD loop** — Coder writes failing tests → Reviewer gates → Coder implements → commit → repeat
