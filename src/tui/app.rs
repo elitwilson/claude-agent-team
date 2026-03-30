@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Datelike, Local, NaiveDate};
 
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
@@ -23,6 +23,171 @@ pub enum PopupAction {
 pub enum ActionChoice {
     ExecuteNow,
     ScheduleLater,
+}
+
+/// AM/PM indicator for 12-hour time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AmPm {
+    Am,
+    Pm,
+}
+
+/// Which field is focused in the schedule picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickerField {
+    Month,
+    Day,
+    Year,
+    Hour,
+    Minute,
+    AmPm,
+}
+
+/// State for the schedule date/time picker.
+#[derive(Debug, Clone)]
+pub struct SchedulePickerState {
+    pub month: u32,
+    pub day: u32,
+    pub year: i32,
+    pub hour: u32,
+    pub minute: u32,
+    pub am_pm: AmPm,
+    pub focused: PickerField,
+    pub error: Option<String>,
+}
+
+impl Default for SchedulePickerState {
+    fn default() -> Self {
+        let now = Local::now();
+        Self {
+            month: now.month(),
+            day: now.day(),
+            year: now.year(),
+            hour: 8,
+            minute: 0,
+            am_pm: AmPm::Pm,
+            focused: PickerField::Month,
+            error: None,
+        }
+    }
+}
+
+impl SchedulePickerState {
+    /// Move focus to the next field (Tab).
+    pub fn next_field(&mut self) {
+        self.focused = match self.focused {
+            PickerField::Month => PickerField::Day,
+            PickerField::Day => PickerField::Year,
+            PickerField::Year => PickerField::Hour,
+            PickerField::Hour => PickerField::Minute,
+            PickerField::Minute => PickerField::AmPm,
+            PickerField::AmPm => PickerField::Month,
+        };
+    }
+
+    /// Move focus to the previous field (Shift-Tab).
+    pub fn prev_field(&mut self) {
+        self.focused = match self.focused {
+            PickerField::Month => PickerField::AmPm,
+            PickerField::Day => PickerField::Month,
+            PickerField::Year => PickerField::Day,
+            PickerField::Hour => PickerField::Year,
+            PickerField::Minute => PickerField::Hour,
+            PickerField::AmPm => PickerField::Minute,
+        };
+    }
+
+    /// Increment the focused field (Up arrow).
+    pub fn increment(&mut self) {
+        match self.focused {
+            PickerField::Month => {
+                self.month = if self.month == 12 { 1 } else { self.month + 1 };
+                self.clamp_day();
+            }
+            PickerField::Day => {
+                let max = days_in_month(self.month, self.year);
+                self.day = if self.day >= max { 1 } else { self.day + 1 };
+            }
+            PickerField::Year => {
+                let max_year = Local::now().year() + 5;
+                if self.year < max_year {
+                    self.year += 1;
+                    self.clamp_day();
+                }
+            }
+            PickerField::Hour => {
+                self.hour = if self.hour == 12 { 1 } else { self.hour + 1 };
+            }
+            PickerField::Minute => {
+                self.minute = if self.minute == 59 {
+                    0
+                } else {
+                    self.minute + 1
+                };
+            }
+            PickerField::AmPm => {
+                self.am_pm = match self.am_pm {
+                    AmPm::Am => AmPm::Pm,
+                    AmPm::Pm => AmPm::Am,
+                };
+            }
+        }
+    }
+
+    /// Decrement the focused field (Down arrow).
+    pub fn decrement(&mut self) {
+        match self.focused {
+            PickerField::Month => {
+                self.month = if self.month == 1 { 12 } else { self.month - 1 };
+                self.clamp_day();
+            }
+            PickerField::Day => {
+                let max = days_in_month(self.month, self.year);
+                self.day = if self.day <= 1 { max } else { self.day - 1 };
+            }
+            PickerField::Year => {
+                let min_year = Local::now().year();
+                if self.year > min_year {
+                    self.year -= 1;
+                    self.clamp_day();
+                }
+            }
+            PickerField::Hour => {
+                self.hour = if self.hour == 1 { 12 } else { self.hour - 1 };
+            }
+            PickerField::Minute => {
+                self.minute = if self.minute == 0 {
+                    59
+                } else {
+                    self.minute - 1
+                };
+            }
+            PickerField::AmPm => {
+                self.am_pm = match self.am_pm {
+                    AmPm::Am => AmPm::Pm,
+                    AmPm::Pm => AmPm::Am,
+                };
+            }
+        }
+    }
+
+    /// Clamp day to valid range for the current month/year.
+    fn clamp_day(&mut self) {
+        let max = days_in_month(self.month, self.year);
+        if self.day > max {
+            self.day = max;
+        }
+    }
+}
+
+/// Returns the number of days in the given month and year.
+fn days_in_month(month: u32, year: i32) -> u32 {
+    if month == 12 {
+        31
+    } else {
+        let next = NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap();
+        next.pred_opt().unwrap().day()
+    }
 }
 
 /// Which panel is currently focused in the TUI.

@@ -844,3 +844,261 @@ fn test_action_popup_confirm_schedule_later_opens_picker() {
     assert_eq!(app.screen, Screen::SchedulePicker);
     assert!(!app.confirmed);
 }
+
+// --- Schedule picker state and navigation ---
+
+#[test]
+fn test_schedule_picker_default_uses_today_at_8pm() {
+    let state = SchedulePickerState::default();
+    let today = chrono::Local::now().date_naive();
+    assert_eq!(state.month, today.month());
+    assert_eq!(state.day, today.day());
+    assert_eq!(state.year, today.year());
+    assert_eq!(state.hour, 8);
+    assert_eq!(state.minute, 0);
+    assert_eq!(state.am_pm, AmPm::Pm);
+    assert_eq!(state.focused, PickerField::Month);
+    assert!(state.error.is_none());
+}
+
+#[test]
+fn test_picker_tab_cycles_forward() {
+    let mut state = SchedulePickerState::default();
+    assert_eq!(state.focused, PickerField::Month);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::Day);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::Year);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::Hour);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::Minute);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::AmPm);
+    state.next_field();
+    assert_eq!(state.focused, PickerField::Month);
+}
+
+#[test]
+fn test_picker_shift_tab_cycles_backward() {
+    let mut state = SchedulePickerState::default();
+    assert_eq!(state.focused, PickerField::Month);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::AmPm);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::Minute);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::Hour);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::Year);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::Day);
+    state.prev_field();
+    assert_eq!(state.focused, PickerField::Month);
+}
+
+#[test]
+fn test_picker_month_increment() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1;
+    state.focused = PickerField::Month;
+    state.increment();
+    assert_eq!(state.month, 2);
+}
+
+#[test]
+fn test_picker_month_wraps_12_to_1() {
+    let mut state = SchedulePickerState::default();
+    state.month = 12;
+    state.focused = PickerField::Month;
+    state.increment();
+    assert_eq!(state.month, 1);
+}
+
+#[test]
+fn test_picker_month_wraps_1_to_12() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1;
+    state.focused = PickerField::Month;
+    state.decrement();
+    assert_eq!(state.month, 12);
+}
+
+#[test]
+fn test_picker_day_increment() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1; // January, 31 days
+    state.day = 15;
+    state.focused = PickerField::Day;
+    state.increment();
+    assert_eq!(state.day, 16);
+}
+
+#[test]
+fn test_picker_day_wraps_at_month_end() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1; // January, 31 days
+    state.day = 31;
+    state.focused = PickerField::Day;
+    state.increment();
+    assert_eq!(state.day, 1);
+}
+
+#[test]
+fn test_picker_day_wraps_1_to_month_end() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1; // January, 31 days
+    state.day = 1;
+    state.focused = PickerField::Day;
+    state.decrement();
+    assert_eq!(state.day, 31);
+}
+
+#[test]
+fn test_picker_year_increment() {
+    let mut state = SchedulePickerState::default();
+    let current_year = chrono::Local::now().year();
+    state.year = current_year;
+    state.focused = PickerField::Year;
+    state.increment();
+    assert_eq!(state.year, current_year + 1);
+}
+
+#[test]
+fn test_picker_year_clamps_at_upper_bound() {
+    let mut state = SchedulePickerState::default();
+    let current_year = chrono::Local::now().year();
+    state.year = current_year + 5;
+    state.focused = PickerField::Year;
+    state.increment();
+    assert_eq!(state.year, current_year + 5); // no wrap, stays at bound
+}
+
+#[test]
+fn test_picker_year_clamps_at_lower_bound() {
+    let mut state = SchedulePickerState::default();
+    let current_year = chrono::Local::now().year();
+    state.year = current_year;
+    state.focused = PickerField::Year;
+    state.decrement();
+    assert_eq!(state.year, current_year); // no wrap, stays at bound
+}
+
+#[test]
+fn test_picker_hour_increment() {
+    let mut state = SchedulePickerState::default();
+    state.hour = 8;
+    state.focused = PickerField::Hour;
+    state.increment();
+    assert_eq!(state.hour, 9);
+}
+
+#[test]
+fn test_picker_hour_wraps_12_to_1() {
+    let mut state = SchedulePickerState::default();
+    state.hour = 12;
+    state.focused = PickerField::Hour;
+    state.increment();
+    assert_eq!(state.hour, 1);
+}
+
+#[test]
+fn test_picker_hour_wraps_1_to_12() {
+    let mut state = SchedulePickerState::default();
+    state.hour = 1;
+    state.focused = PickerField::Hour;
+    state.decrement();
+    assert_eq!(state.hour, 12);
+}
+
+#[test]
+fn test_picker_minute_increment() {
+    let mut state = SchedulePickerState::default();
+    state.minute = 30;
+    state.focused = PickerField::Minute;
+    state.increment();
+    assert_eq!(state.minute, 31);
+}
+
+#[test]
+fn test_picker_minute_wraps_59_to_0() {
+    let mut state = SchedulePickerState::default();
+    state.minute = 59;
+    state.focused = PickerField::Minute;
+    state.increment();
+    assert_eq!(state.minute, 0);
+}
+
+#[test]
+fn test_picker_minute_wraps_0_to_59() {
+    let mut state = SchedulePickerState::default();
+    state.minute = 0;
+    state.focused = PickerField::Minute;
+    state.decrement();
+    assert_eq!(state.minute, 59);
+}
+
+#[test]
+fn test_picker_ampm_toggles_on_increment() {
+    let mut state = SchedulePickerState::default();
+    state.am_pm = AmPm::Pm;
+    state.focused = PickerField::AmPm;
+    state.increment();
+    assert_eq!(state.am_pm, AmPm::Am);
+}
+
+#[test]
+fn test_picker_ampm_toggles_on_decrement() {
+    let mut state = SchedulePickerState::default();
+    state.am_pm = AmPm::Am;
+    state.focused = PickerField::AmPm;
+    state.decrement();
+    assert_eq!(state.am_pm, AmPm::Pm);
+}
+
+#[test]
+fn test_picker_day_clamped_when_month_changes_to_shorter_month() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1; // January
+    state.day = 31;
+    state.year = 2026;
+    state.focused = PickerField::Month;
+    state.increment(); // February
+    assert_eq!(state.month, 2);
+    assert_eq!(state.day, 28); // 2026 is not a leap year
+}
+
+#[test]
+fn test_picker_day_clamped_feb_29_on_leap_year() {
+    let mut state = SchedulePickerState::default();
+    state.month = 1; // January
+    state.day = 31;
+    state.year = 2028; // leap year
+    state.focused = PickerField::Month;
+    state.increment(); // February
+    assert_eq!(state.month, 2);
+    assert_eq!(state.day, 29); // leap year allows 29
+}
+
+#[test]
+fn test_picker_day_clamped_30_day_month() {
+    let mut state = SchedulePickerState::default();
+    state.month = 3; // March, 31 days
+    state.day = 31;
+    state.focused = PickerField::Month;
+    state.increment(); // April, 30 days
+    assert_eq!(state.month, 4);
+    assert_eq!(state.day, 30);
+}
+
+#[test]
+fn test_picker_day_clamped_when_year_changes_feb_29() {
+    let mut state = SchedulePickerState::default();
+    state.month = 2;
+    state.day = 29;
+    state.year = 2028; // leap year
+    state.focused = PickerField::Year;
+    state.increment(); // 2029 is not a leap year
+    assert_eq!(state.year, 2029);
+    assert_eq!(state.day, 28);
+}
