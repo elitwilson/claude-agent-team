@@ -681,3 +681,56 @@ fn test_schedule_picker_confirm_rejects_past_time() {
     assert!(result.is_none());
     assert!(picker.error.is_some());
 }
+
+// --- Integration smoke test ---
+
+/// Simulates the full event sequence: navigate spec list → open team popup →
+/// navigate team popup → confirm team → confirm action → verify TuiResult.
+#[test]
+fn test_integration_full_flow_spec_to_team_to_execute_produces_correct_result() {
+    let mut app = App::new(
+        vec![
+            spec("feature-a.md"),
+            spec("feature-b.md"),
+            spec("feature-c.md"),
+        ],
+        vec!["alpha-team".into(), "beta-team".into()],
+        "alpha-team",
+        Prefs::default(),
+    );
+
+    // Navigate spec list down to feature-b.md
+    app.move_down();
+    assert_eq!(app.spec_index, 1);
+
+    // Press Enter -> opens TeamDialog with alpha-team (index 0) pre-selected
+    app.confirm();
+    assert!(matches!(
+        app.popup,
+        Some(PopupAction::TeamDialog { selected_index: 0 })
+    ));
+
+    // Navigate team popup down to beta-team
+    app.popup_move_down();
+    assert!(matches!(
+        app.popup,
+        Some(PopupAction::TeamDialog { selected_index: 1 })
+    ));
+
+    // Confirm team -> stores beta-team, opens ActionDialog
+    app.confirm_popup();
+    assert_eq!(app.team_index, 1);
+    assert!(matches!(app.popup, Some(PopupAction::ActionDialog { .. })));
+
+    // Confirm Execute Now
+    app.confirm_popup();
+    assert!(app.confirmed);
+
+    // Verify result
+    let result = app.result().unwrap();
+    assert_eq!(result.spec, "feature-b.md");
+    assert_eq!(result.team, "beta-team");
+    assert!(!result.headless);
+    assert!(matches!(result.mode, RunMode::TeamRun));
+    assert!(result.scheduled_at.is_none());
+}

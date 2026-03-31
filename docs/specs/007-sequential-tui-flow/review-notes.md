@@ -28,3 +28,20 @@
 - Tests verify observable behavior throughout; no implementation-detail testing observed.
 - `prefs.save()` side effect is not tested, but this is a file I/O concern outside the scope of unit tests and not called out in the spec's success criteria.
 - Bonus coverage: `visible_specs()` filter behavior and spec-index clamping on pref toggle are tested, which directly supports the toggle requirements.
+
+## Task 3: Integration smoke test
+
+**Verdict: APPROVED**
+
+### Requirements checklist vs. test coverage
+
+| Requirement | Test(s) | Status |
+|---|---|---|
+| Full flow (spec → team → execute now) produces correct `TuiResult` (spec and team set) | `test_integration_full_flow_spec_to_team_to_execute_produces_correct_result` | Covered |
+| Full flow (spec → team → schedule later → schedule picker) works end-to-end | `test_full_flow_confirm_team_then_schedule_later_sets_screen` (Task 1) | Covered |
+
+### Notes
+
+- The execute-now integration test exercises the complete sequential event chain at the observable level: navigate spec list, open team popup, navigate team popup, confirm team, confirm Execute Now, verify `TuiResult` fields. No implementation internals are tested.
+- The schedule-later path is satisfied by cross-reference to the Task 1 test. This is valid: the spec's out-of-scope section explicitly excludes schedule picker behavior, so the end-to-end requirement for that path is met by verifying the screen transition to SchedulePicker.
+- The integration test also verifies `result.headless`, `result.mode`, and `result.scheduled_at` beyond what the spec strictly requires — this is additive coverage, not a flag.
