@@ -1,12 +1,19 @@
 # claude-bros
 
-A tool for autonomously implementing features using Claude Code agent teams. Pick a spec in the TUI, assign a team, and `claude-bros` handles the rest: pre-flight git setup, agent session, metrics collection.
+A launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec in the TUI, assign a team, and `claude-bros` handles the rest: pre-flight git setup, agent session, metrics collection.
 
 ```
 [Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
 ```
 
-The agent team consists of three roles: a **Lead** that coordinates, a **Coder** that implements via TDD, and a **Reviewer** that gates tests before implementation begins.
+Available teams:
+
+| Team | Description |
+|------|-------------|
+| `feature-dev` | Lead + Coder + Reviewer. Full TDD loop with a structural review gate per task. |
+| `solo-with-subagent-review` | Single agent. TDD loop with a one-shot sub-agent reviewer before each implementation. |
+| `solo-dev` | Single agent. Pure TDD loop, no review gate. |
+| `investigation` | Coordinator + parallel investigators. Read-only codebase exploration, produces a written report. |
 
 ---
 
@@ -100,14 +107,13 @@ status: ready
 
 | Status | Meaning | Shown in TUI |
 |--------|---------|--------------|
-| `ready` | Ready for implementation | Yes |
-| `needs_attention` | Previous run did not complete | Yes |
-| `complete` | Implemented | No (filterable) |
-| `blocked` | Blocked on something external | No (filterable) |
+| `ready` | Ready to run | Yes |
+| `complete` | Run finished successfully | No (filterable) |
+| `blocked` | Needs human review before proceeding | No (filterable) |
 
 Specs with missing or unrecognized status are treated as `ready`.
 
-The team lead updates the spec's `status` at the end of each run: `complete` if all tasks finished, `needs_attention` if any did not.
+The agent team updates the spec's `status` at the end of each run: `complete` if all tasks finished, `blocked` if any did not or if human review is needed.
 
 ### Writing a spec
 
@@ -135,19 +141,19 @@ This is useful when you want to brain-dump requirements without worrying about s
 
 ## How It Works
 
-1. **TUI** — select a spec and team; specs with `status: complete` or `blocked` are hidden by default (toggle in Options)
+1. **TUI** — select a spec, then a team; specs with `status: complete` or `blocked` are hidden by default (toggle in Options)
 2. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
-3. **Agent team** — Lead reads the spec and role definitions, spawns Coder and Reviewer, coordinates a TDD loop per task
-4. **TDD loop** — Coder writes failing tests → Reviewer gates → Coder implements → commit → repeat
-5. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite (non-fatal if it fails)
-6. **Summary** — branch name and metrics status printed to stdout
+3. **Agent team** — the selected team reads the spec and its role definitions, then runs its workflow autonomously
+4. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite (non-fatal if it fails)
+5. **Summary** — branch name and metrics status printed to stdout
 
 ### Runtime artifacts
 
 | File | Purpose |
 |------|---------|
-| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions the Lead logged during the run |
-| `docs/specs/<slug>/review-notes.md` | Reviewer gate outcomes per task |
+| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions logged during the run |
+| `docs/specs/<slug>/review-notes.md` | Reviewer gate outcomes per task (feature-dev, solo-with-subagent-review) |
+| `docs/specs/<slug>/investigation-report.md` | Synthesized findings report (investigation team) |
 | `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
 | `~/.claude/claude-agent-team-metrics.db` | Token usage across all runs |
 
