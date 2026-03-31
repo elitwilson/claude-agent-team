@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
+use libc;
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 
 /// A scheduled agent run backed by a launchd plist.
@@ -50,6 +51,14 @@ pub fn generate_plist_xml(
 
     let args_xml = program_args.join("\n");
 
+    let log_dir = format!("{working}/logs/agent-runs");
+    let stdout_path = format!("{log_dir}/{spec}-launchd.log");
+    let stderr_path = format!("{log_dir}/{spec}-launchd.err");
+
+    // Capture current PATH so launchd (which runs with a minimal environment)
+    // can find binaries like `claude` that live in user-specific directories.
+    let path_env = std::env::var("PATH").unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".to_string());
+
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -61,8 +70,17 @@ pub fn generate_plist_xml(
     <array>
 {args_xml}
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{path_env}</string>
+    </dict>
     <key>WorkingDirectory</key>
     <string>{working}</string>
+    <key>StandardOutPath</key>
+    <string>{stdout_path}</string>
+    <key>StandardErrorPath</key>
+    <string>{stderr_path}</string>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Month</key>
@@ -120,6 +138,15 @@ pub fn schedule_run(
     validate_schedule_time(scheduled_at)?;
 
     let plist_path = plist_path_for_spec(spec)?;
+
+    // Unload and remove any existing registration for this spec before re-scheduling.
+    if plist_path.exists() {
+        let _ = Command::new("launchctl")
+            .args(["unload", plist_path.to_str().unwrap_or("")])
+            .status();
+        let _ = std::fs::remove_file(&plist_path);
+    }
+
     let binary_path = std::env::current_exe().context("Failed to resolve binary path")?;
 
     let xml = generate_plist_xml(spec, team, headless, working_dir, scheduled_at, &binary_path, &plist_path)?;
@@ -133,7 +160,6 @@ pub fn schedule_run(
         .context("Failed to run launchctl load")?;
 
     if !status.success() {
-        // Clean up the written file if launchctl load fails
         let _ = std::fs::remove_file(&plist_path);
         anyhow::bail!("launchctl load failed with exit code {:?}", status.code());
     }
@@ -341,7 +367,7 @@ pub fn cleanup_plist(path: &Path) -> Result<()> {
         .output()
         .context("Failed to run launchctl unload")?;
 
-    if !output.status.success() || String::from_utf8_lossy(&output.stderr).contains("Unload failed") {
+    if !output.status.success() {
         anyhow::bail!(
             "launchctl unload failed for {}: {}",
             path.display(),

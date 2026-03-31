@@ -35,7 +35,8 @@ pub fn check_clean_working_tree() -> Result<()> {
         .context("Failed to run git status")?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    if !stdout.trim().is_empty() {
+    let has_changes = stdout.lines().any(|l| !l.starts_with("??"));
+    if has_changes {
         bail!("Working tree is not clean. Please commit or stash your changes first.");
     }
     Ok(())
