@@ -36,5 +36,5 @@ feat(<area>): <short description>
 
 When all tasks are complete, you MUST do both of the following before considering the run finished:
 
-1. **Update the spec file's `status` frontmatter** — set to `complete` if all tasks finished successfully, `needs_attention` if any did not. This is not optional. The run is not done until this is written.
+1. **Update the spec file's `status` frontmatter** — set to `complete` if all tasks finished successfully, `blocked` if any did not. This is not optional. The run is not done until this is written.
 2. Output a brief summary: tasks completed, anything in decisions.md that needs human review

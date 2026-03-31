@@ -32,4 +32,4 @@ The sub-agent is one-shot — it reviews, writes its verdict, and terminates. Do
 - Commit after each completed task — not one giant commit at the end
 - Do not push to remote
 - Log ambiguities and assumptions to `docs/specs/<feature-slug>/decisions.md` rather than halting
-- After all tasks are complete, update the spec file's `status` frontmatter to `complete` if all tasks finished successfully, or `needs_attention` if any did not
+- After all tasks are complete, update the spec file's `status` frontmatter to `complete` if all tasks finished successfully, or `blocked` if any did not
