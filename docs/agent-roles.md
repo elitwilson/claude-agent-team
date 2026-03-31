@@ -8,6 +8,10 @@ Role definitions live in `docs/roles/<team-type>/`. Load only what you need.
 - `docs/roles/feature-dev/coder.md` — TDD implementation, owns all code
 - `docs/roles/feature-dev/reviewer.md` — test review gate, critical issues only, one pass per task
 
+## solo-dev
+
+- `docs/roles/solo-dev/solo-dev.md` — owns everything: task breakdown, TDD cycle (no review gate), commits, git ops
+
 ## investigation
 
 - `docs/roles/investigation/coordinator.md` — decomposes the brief, spawns parallel investigators, synthesizes the final report
