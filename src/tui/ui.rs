@@ -173,7 +173,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
-            Constraint::Length(3),
+            Constraint::Length((app.teams.len() + 2) as u16),
             Constraint::Length(5), // Options panel: 3 items + 2 borders
             Constraint::Length(1),
         ])
