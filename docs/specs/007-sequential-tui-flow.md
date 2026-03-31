@@ -1,6 +1,6 @@
 ---
 number: 007
-status: ready
+status: complete
 ---
 
 # Feature: Sequential TUI Selection Flow
