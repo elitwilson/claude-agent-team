@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
-use super::app::{ActionChoice, App, PopupAction, Screen, SchedulePickerState, SpecTab, TuiResult};
+use super::app::{ActionChoice, App, OPTIONS_ITEMS, Panel, PopupAction, Screen, SchedulePickerState, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::config::{SpecEntry, SpecStatus};
@@ -76,12 +76,17 @@ where
                     KeyCode::Char('m') | KeyCode::Char('M') => {
                         load_metrics(app);
                     }
-                    KeyCode::Tab | KeyCode::Left | KeyCode::Right => app.switch_tab(),
+                    KeyCode::Tab => app.next_panel(),
+                    KeyCode::Left | KeyCode::Right
+                        if app.focused_panel == Panel::Spec =>
+                    {
+                        app.switch_tab()
+                    }
                     KeyCode::Up => app.move_up(),
                     KeyCode::Down => app.move_down(),
-                    KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_headless(),
-                    KeyCode::Char('c') | KeyCode::Char('C') => app.toggle_show_complete(),
-                    KeyCode::Char('b') | KeyCode::Char('B') => app.toggle_show_blocked(),
+                    KeyCode::Char(' ') if app.focused_panel == Panel::Options => {
+                        app.toggle_option()
+                    }
                     KeyCode::Enter => app.confirm(),
                     _ => {}
                 },
@@ -170,6 +175,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
+            Constraint::Length(5), // Options panel: 3 items + 2 borders
             Constraint::Length(1),
         ])
         .split(f.area());
@@ -250,14 +256,47 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         }
     }
 
+    // --- Options panel ---
+    let options_focused = app.focused_panel == Panel::Options;
+    let focused_style = Style::default().fg(Color::Yellow);
+    let normal_style = Style::default();
+    let option_data = [
+        ("Headless", app.prefs.headless),
+        ("Show Complete", app.prefs.show_complete),
+        ("Show Blocked", app.prefs.show_blocked),
+    ];
+    let option_items: Vec<ListItem> = option_data
+        .iter()
+        .map(|(label, checked)| {
+            let checkbox = if *checked { "[x]" } else { "[ ]" };
+            ListItem::new(format!("{checkbox} {label}"))
+        })
+        .collect();
+    let options_list = List::new(option_items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Options")
+                .border_style(if options_focused { focused_style } else { normal_style }),
+        )
+        .highlight_symbol("> ")
+        .highlight_style(if options_focused {
+            Style::default().add_modifier(Modifier::REVERSED)
+        } else {
+            Style::default()
+        });
+    let mut options_state = ListState::default();
+    if options_focused {
+        options_state.select(Some(app.options_index));
+    }
+    f.render_stateful_widget(options_list, chunks[1], &mut options_state);
+
     // --- Footer ---
-    let headless_state = if app.prefs.headless { "on" } else { "off" };
-    let complete_state = if app.prefs.show_complete { "on" } else { "off" };
-    let blocked_state = if app.prefs.show_blocked { "on" } else { "off" };
-    let footer_text = format!(
-        "  h:headless[{headless_state}]  c:complete[{complete_state}]  b:blocked[{blocked_state}]  Tab switch tab  Enter select  q quit"
-    );
-    f.render_widget(Paragraph::new(Line::from(footer_text.as_str())), chunks[1]);
+    let footer_text = match app.focused_panel {
+        Panel::Spec => "  ↑↓ navigate  ←→ switch tab  Tab panel  Enter confirm  q quit",
+        Panel::Options => "  ↑↓ navigate  Space toggle  Tab panel  q quit",
+    };
+    f.render_widget(Paragraph::new(Line::from(footer_text)), chunks[2]);
 
     // --- Team popup overlay ---
     if let Some(PopupAction::TeamDialog { selected_index }) = app.popup {

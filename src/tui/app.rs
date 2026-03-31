@@ -227,6 +227,16 @@ fn days_in_month(month: u32, year: i32) -> u32 {
     }
 }
 
+/// Which panel is currently focused in the TUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Panel {
+    Spec,
+    Options,
+}
+
+/// Number of items in the Options panel.
+pub const OPTIONS_ITEMS: usize = 3;
+
 /// Which tab is active in the spec panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecTab {
@@ -260,6 +270,8 @@ pub struct App {
     pub spec_index: usize,
     pub requirements_index: usize,
     pub team_index: usize,
+    pub options_index: usize,
+    pub focused_panel: Panel,
     pub prefs: Prefs,
     pub active_tab: SpecTab,
     pub should_quit: bool,
@@ -289,6 +301,8 @@ impl App {
             spec_index: 0,
             requirements_index: 0,
             team_index,
+            options_index: 0,
+            focused_panel: Panel::Spec,
             prefs,
             active_tab: SpecTab::Specs,
             should_quit: false,
@@ -313,6 +327,14 @@ impl App {
             .collect()
     }
 
+    /// Cycle focus to the next panel (Tab).
+    pub fn next_panel(&mut self) {
+        self.focused_panel = match self.focused_panel {
+            Panel::Spec => Panel::Options,
+            Panel::Options => Panel::Spec,
+        };
+    }
+
     /// Toggle between Specs and Requirements tabs.
     pub fn switch_tab(&mut self) {
         self.active_tab = match self.active_tab {
@@ -321,7 +343,7 @@ impl App {
         };
     }
 
-    /// Move selection up within the active tab or scroll metrics.
+    /// Move selection up within the focused panel or scroll metrics.
     pub fn move_up(&mut self) {
         if self.screen == Screen::Metrics {
             if let Some(ref mut state) = self.metrics_state {
@@ -329,17 +351,22 @@ impl App {
             }
             return;
         }
-        match self.active_tab {
-            SpecTab::Specs => {
-                self.spec_index = self.spec_index.saturating_sub(1);
-            }
-            SpecTab::Requirements => {
-                self.requirements_index = self.requirements_index.saturating_sub(1);
+        match self.focused_panel {
+            Panel::Spec => match self.active_tab {
+                SpecTab::Specs => {
+                    self.spec_index = self.spec_index.saturating_sub(1);
+                }
+                SpecTab::Requirements => {
+                    self.requirements_index = self.requirements_index.saturating_sub(1);
+                }
+            },
+            Panel::Options => {
+                self.options_index = self.options_index.saturating_sub(1);
             }
         }
     }
 
-    /// Move selection down within the active tab or scroll metrics.
+    /// Move selection down within the focused panel or scroll metrics.
     pub fn move_down(&mut self) {
         if self.screen == Screen::Metrics {
             if let Some(ref mut state) = self.metrics_state {
@@ -347,19 +374,43 @@ impl App {
             }
             return;
         }
-        match self.active_tab {
-            SpecTab::Specs => {
-                let visible = self.visible_specs().len();
-                if self.spec_index + 1 < visible {
-                    self.spec_index += 1;
+        match self.focused_panel {
+            Panel::Spec => match self.active_tab {
+                SpecTab::Specs => {
+                    let visible = self.visible_specs().len();
+                    if self.spec_index + 1 < visible {
+                        self.spec_index += 1;
+                    }
                 }
-            }
-            SpecTab::Requirements => {
-                if self.requirements_index + 1 < self.requirements.len() {
-                    self.requirements_index += 1;
+                SpecTab::Requirements => {
+                    if self.requirements_index + 1 < self.requirements.len() {
+                        self.requirements_index += 1;
+                    }
+                }
+            },
+            Panel::Options => {
+                if self.options_index + 1 < OPTIONS_ITEMS {
+                    self.options_index += 1;
                 }
             }
         }
+    }
+
+    /// Toggle the option at options_index and save prefs.
+    pub fn toggle_option(&mut self) {
+        match self.options_index {
+            0 => self.prefs.headless = !self.prefs.headless,
+            1 => {
+                self.prefs.show_complete = !self.prefs.show_complete;
+                self.clamp_spec_index();
+            }
+            2 => {
+                self.prefs.show_blocked = !self.prefs.show_blocked;
+                self.clamp_spec_index();
+            }
+            _ => {}
+        }
+        self.prefs.save();
     }
 
     /// Toggle headless pref and save.
@@ -392,9 +443,11 @@ impl App {
         }
     }
 
-    /// Confirm Enter key on the launcher. On Specs tab, opens the team popup.
-    /// On Requirements tab, confirms the draft run directly.
+    /// Confirm Enter key on the launcher. Only acts when Spec panel is focused.
     pub fn confirm(&mut self) {
+        if self.focused_panel != Panel::Spec {
+            return;
+        }
         match self.active_tab {
             SpecTab::Specs => self.open_team_popup(),
             SpecTab::Requirements => {
