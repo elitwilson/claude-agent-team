@@ -12,9 +12,10 @@ pub enum Screen {
     SchedulePicker,
 }
 
-/// The action popup shown when pressing Enter on a Ready spec.
+/// The popup shown over the launcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PopupAction {
+    TeamDialog { selected_index: usize },
     ActionDialog { selected: ActionChoice },
 }
 
@@ -226,14 +227,6 @@ fn days_in_month(month: u32, year: i32) -> u32 {
     }
 }
 
-/// Which panel is currently focused in the TUI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Panel {
-    Spec,
-    Team,
-    Options,
-}
-
 /// Which tab is active in the spec panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecTab {
@@ -258,9 +251,6 @@ pub struct TuiResult {
     pub scheduled_at: Option<DateTime<Local>>,
 }
 
-/// Labels for each item in the Options panel, in order.
-pub const OPTIONS_ITEMS: usize = 3;
-
 /// TUI application state.
 #[derive(Debug)]
 pub struct App {
@@ -270,9 +260,7 @@ pub struct App {
     pub spec_index: usize,
     pub requirements_index: usize,
     pub team_index: usize,
-    pub options_index: usize,
     pub prefs: Prefs,
-    pub focused_panel: Panel,
     pub active_tab: SpecTab,
     pub should_quit: bool,
     pub confirmed: bool,
@@ -301,9 +289,7 @@ impl App {
             spec_index: 0,
             requirements_index: 0,
             team_index,
-            options_index: 0,
             prefs,
-            focused_panel: Panel::Spec,
             active_tab: SpecTab::Specs,
             should_quit: false,
             confirmed: false,
@@ -327,16 +313,7 @@ impl App {
             .collect()
     }
 
-    /// Move focus to the next panel (Tab).
-    pub fn next_panel(&mut self) {
-        self.focused_panel = match self.focused_panel {
-            Panel::Spec => Panel::Team,
-            Panel::Team => Panel::Options,
-            Panel::Options => Panel::Spec,
-        };
-    }
-
-    /// Toggle between Specs and Requirements tabs when the Spec panel is focused.
+    /// Toggle between Specs and Requirements tabs.
     pub fn switch_tab(&mut self) {
         self.active_tab = match self.active_tab {
             SpecTab::Specs => SpecTab::Requirements,
@@ -344,7 +321,7 @@ impl App {
         };
     }
 
-    /// Move selection up within the current panel or scroll metrics.
+    /// Move selection up within the active tab or scroll metrics.
     pub fn move_up(&mut self) {
         if self.screen == Screen::Metrics {
             if let Some(ref mut state) = self.metrics_state {
@@ -352,25 +329,17 @@ impl App {
             }
             return;
         }
-        match self.focused_panel {
-            Panel::Spec => match self.active_tab {
-                SpecTab::Specs => {
-                    self.spec_index = self.spec_index.saturating_sub(1);
-                }
-                SpecTab::Requirements => {
-                    self.requirements_index = self.requirements_index.saturating_sub(1);
-                }
-            },
-            Panel::Team => {
-                self.team_index = self.team_index.saturating_sub(1);
+        match self.active_tab {
+            SpecTab::Specs => {
+                self.spec_index = self.spec_index.saturating_sub(1);
             }
-            Panel::Options => {
-                self.options_index = self.options_index.saturating_sub(1);
+            SpecTab::Requirements => {
+                self.requirements_index = self.requirements_index.saturating_sub(1);
             }
         }
     }
 
-    /// Move selection down within the current panel or scroll metrics.
+    /// Move selection down within the active tab or scroll metrics.
     pub fn move_down(&mut self) {
         if self.screen == Screen::Metrics {
             if let Some(ref mut state) = self.metrics_state {
@@ -378,54 +347,39 @@ impl App {
             }
             return;
         }
-        match self.focused_panel {
-            Panel::Spec => match self.active_tab {
-                SpecTab::Specs => {
-                    let visible = self.visible_specs().len();
-                    if self.spec_index + 1 < visible {
-                        self.spec_index += 1;
-                    }
-                }
-                SpecTab::Requirements => {
-                    if self.requirements_index + 1 < self.requirements.len() {
-                        self.requirements_index += 1;
-                    }
-                }
-            },
-            Panel::Team => {
-                if self.team_index + 1 < self.teams.len() {
-                    self.team_index += 1;
+        match self.active_tab {
+            SpecTab::Specs => {
+                let visible = self.visible_specs().len();
+                if self.spec_index + 1 < visible {
+                    self.spec_index += 1;
                 }
             }
-            Panel::Options => {
-                if self.options_index + 1 < OPTIONS_ITEMS {
-                    self.options_index += 1;
+            SpecTab::Requirements => {
+                if self.requirements_index + 1 < self.requirements.len() {
+                    self.requirements_index += 1;
                 }
             }
         }
     }
 
-    /// Toggle the option at the current options_index and save prefs.
-    pub fn toggle_option(&mut self) {
-        match self.options_index {
-            0 => self.prefs.headless = !self.prefs.headless,
-            1 => {
-                self.prefs.show_complete = !self.prefs.show_complete;
-                self.clamp_spec_index();
-            }
-            2 => {
-                self.prefs.show_blocked = !self.prefs.show_blocked;
-                self.clamp_spec_index();
-            }
-            _ => {}
-        }
+    /// Toggle headless pref and save.
+    pub fn toggle_headless(&mut self) {
+        self.prefs.headless = !self.prefs.headless;
         self.prefs.save();
     }
 
-    /// Toggle headless (kept for backwards compat with key handler).
-    pub fn toggle_headless(&mut self) {
-        self.options_index = 0;
-        self.toggle_option();
+    /// Toggle show_complete pref, clamp spec index, and save.
+    pub fn toggle_show_complete(&mut self) {
+        self.prefs.show_complete = !self.prefs.show_complete;
+        self.clamp_spec_index();
+        self.prefs.save();
+    }
+
+    /// Toggle show_blocked pref, clamp spec index, and save.
+    pub fn toggle_show_blocked(&mut self) {
+        self.prefs.show_blocked = !self.prefs.show_blocked;
+        self.clamp_spec_index();
+        self.prefs.save();
     }
 
     /// Clamp spec_index to the visible specs list length after a filter change.
@@ -438,11 +392,11 @@ impl App {
         }
     }
 
-    /// Confirm and exit the TUI (Enter). No-op if the active list is empty or selected spec
-    /// is Complete or Blocked.
+    /// Confirm Enter key on the launcher. On Specs tab, opens the team popup.
+    /// On Requirements tab, confirms the draft run directly.
     pub fn confirm(&mut self) {
         match self.active_tab {
-            SpecTab::Specs => self.open_action_popup(),
+            SpecTab::Specs => self.open_team_popup(),
             SpecTab::Requirements => {
                 if !self.requirements.is_empty() {
                     self.confirmed = true;
@@ -462,12 +416,9 @@ impl App {
         self.screen = Screen::Launcher;
     }
 
-    /// Open the action popup for the currently selected spec.
-    /// No-op if on the Requirements tab.
-    pub fn open_action_popup(&mut self) {
-        if self.active_tab == SpecTab::Requirements {
-            return;
-        }
+    /// Open the team selection popup for the currently highlighted spec.
+    /// No-op if the spec list is empty or the selected spec is Blocked/Complete.
+    pub fn open_team_popup(&mut self) {
         let visible = self.visible_specs();
         if visible.is_empty() {
             return;
@@ -476,41 +427,70 @@ impl App {
         if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
             return;
         }
-        self.popup = Some(PopupAction::ActionDialog {
-            selected: ActionChoice::ExecuteNow,
+        self.popup = Some(PopupAction::TeamDialog {
+            selected_index: self.team_index,
         });
     }
 
-    /// Dismiss the popup without taking action.
+    /// Dismiss the active popup.
+    /// Esc on TeamDialog → spec list (popup = None).
+    /// Esc on ActionDialog → restores TeamDialog.
     pub fn dismiss_popup(&mut self) {
-        self.popup = None;
+        self.popup = match self.popup.take() {
+            Some(PopupAction::ActionDialog { .. }) => Some(PopupAction::TeamDialog {
+                selected_index: self.team_index,
+            }),
+            _ => None,
+        };
     }
 
-    /// Move selection down within the popup.
+    /// Move selection down within the active popup.
     pub fn popup_move_down(&mut self) {
-        if let Some(PopupAction::ActionDialog { ref mut selected }) = self.popup {
-            if *selected == ActionChoice::ExecuteNow {
-                *selected = ActionChoice::ScheduleLater;
+        match &mut self.popup {
+            Some(PopupAction::TeamDialog { selected_index }) => {
+                if *selected_index + 1 < self.teams.len() {
+                    *selected_index += 1;
+                }
             }
+            Some(PopupAction::ActionDialog { selected }) => {
+                if *selected == ActionChoice::ExecuteNow {
+                    *selected = ActionChoice::ScheduleLater;
+                }
+            }
+            None => {}
         }
     }
 
-    /// Move selection up within the popup.
+    /// Move selection up within the active popup.
     pub fn popup_move_up(&mut self) {
-        if let Some(PopupAction::ActionDialog { ref mut selected }) = self.popup {
-            if *selected == ActionChoice::ScheduleLater {
-                *selected = ActionChoice::ExecuteNow;
+        match &mut self.popup {
+            Some(PopupAction::TeamDialog { selected_index }) => {
+                *selected_index = selected_index.saturating_sub(1);
             }
+            Some(PopupAction::ActionDialog { selected }) => {
+                if *selected == ActionChoice::ScheduleLater {
+                    *selected = ActionChoice::ExecuteNow;
+                }
+            }
+            None => {}
         }
     }
 
-    /// Confirm the popup selection.
+    /// Confirm the active popup selection.
+    /// TeamDialog → stores team_index and opens ActionDialog.
+    /// ActionDialog → ExecuteNow sets confirmed; ScheduleLater switches to SchedulePicker.
     pub fn confirm_popup(&mut self) {
         let action = match self.popup.take() {
             Some(a) => a,
             None => return,
         };
         match action {
+            PopupAction::TeamDialog { selected_index } => {
+                self.team_index = selected_index;
+                self.popup = Some(PopupAction::ActionDialog {
+                    selected: ActionChoice::ExecuteNow,
+                });
+            }
             PopupAction::ActionDialog { selected } => match selected {
                 ActionChoice::ExecuteNow => {
                     self.confirmed = true;

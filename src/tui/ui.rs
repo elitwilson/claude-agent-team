@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
-use super::app::{ActionChoice, App, OPTIONS_ITEMS, Panel, PopupAction, RunMode, Screen, SchedulePickerState, SpecTab, TuiResult};
+use super::app::{ActionChoice, App, PopupAction, Screen, SchedulePickerState, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::config::{SpecEntry, SpecStatus};
@@ -66,7 +66,7 @@ where
                     KeyCode::Up => app.popup_move_up(),
                     KeyCode::Down => app.popup_move_down(),
                     KeyCode::Enter => app.confirm_popup(),
-                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => app.dismiss_popup(),
+                    KeyCode::Esc => app.dismiss_popup(),
                     _ => {}
                 },
                 Screen::Launcher => match key.code {
@@ -76,15 +76,12 @@ where
                     KeyCode::Char('m') | KeyCode::Char('M') => {
                         load_metrics(app);
                     }
-                    KeyCode::Tab => app.next_panel(),
-                    KeyCode::Left | KeyCode::Right if app.focused_panel == Panel::Spec => {
-                        app.switch_tab();
-                    }
+                    KeyCode::Tab | KeyCode::Left | KeyCode::Right => app.switch_tab(),
                     KeyCode::Up => app.move_up(),
                     KeyCode::Down => app.move_down(),
-                    KeyCode::Char(' ') if app.focused_panel == Panel::Options => {
-                        app.toggle_option();
-                    }
+                    KeyCode::Char('h') | KeyCode::Char('H') => app.toggle_headless(),
+                    KeyCode::Char('c') | KeyCode::Char('C') => app.toggle_show_complete(),
+                    KeyCode::Char('b') | KeyCode::Char('B') => app.toggle_show_blocked(),
                     KeyCode::Enter => app.confirm(),
                     _ => {}
                 },
@@ -173,14 +170,9 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
-            Constraint::Length((app.teams.len() + 2) as u16),
-            Constraint::Length(5), // Options panel: 3 items + 2 borders
             Constraint::Length(1),
         ])
         .split(f.area());
-
-    let focused_style = Style::default().fg(Color::Yellow);
-    let normal_style = Style::default();
 
     // --- Spec panel ---
     let tab_title = {
@@ -201,12 +193,7 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     };
     let spec_block = Block::default()
         .borders(Borders::ALL)
-        .title(tab_title)
-        .border_style(if app.focused_panel == Panel::Spec {
-            focused_style
-        } else {
-            normal_style
-        });
+        .title(tab_title);
 
     match app.active_tab {
         SpecTab::Specs => {
@@ -263,74 +250,45 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         }
     }
 
-    // --- Team panel ---
-    let team_items: Vec<ListItem> = app
-        .teams
-        .iter()
-        .map(|t| ListItem::new(t.as_str()))
-        .collect();
-    let team_list = List::new(team_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Team")
-                .border_style(if app.focused_panel == Panel::Team {
-                    focused_style
-                } else {
-                    normal_style
-                }),
-        )
-        .highlight_symbol("> ");
-    let mut team_state = ListState::default();
-    team_state.select(Some(app.team_index));
-    f.render_stateful_widget(team_list, chunks[1], &mut team_state);
+    // --- Footer ---
+    let headless_state = if app.prefs.headless { "on" } else { "off" };
+    let complete_state = if app.prefs.show_complete { "on" } else { "off" };
+    let blocked_state = if app.prefs.show_blocked { "on" } else { "off" };
+    let footer_text = format!(
+        "  h:headless[{headless_state}]  c:complete[{complete_state}]  b:blocked[{blocked_state}]  Tab switch tab  Enter select  q quit"
+    );
+    f.render_widget(Paragraph::new(Line::from(footer_text.as_str())), chunks[1]);
 
-    // --- Options panel ---
-    let options_focused = app.focused_panel == Panel::Options;
-    let option_data = [
-        ("Headless", app.prefs.headless),
-        ("Show Complete", app.prefs.show_complete),
-        ("Show Blocked", app.prefs.show_blocked),
-    ];
-    let option_items: Vec<ListItem> = option_data
-        .iter()
-        .map(|(label, checked)| {
-            let checkbox = if *checked { "[x]" } else { "[ ]" };
-            ListItem::new(format!("{checkbox} {label}"))
-        })
-        .collect();
-    let options_list = List::new(option_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Options")
-                .border_style(if options_focused {
-                    focused_style
-                } else {
-                    normal_style
-                }),
-        )
-        .highlight_symbol("> ")
-        .highlight_style(if options_focused {
-            Style::default().add_modifier(Modifier::REVERSED)
-        } else {
-            Style::default()
-        });
-    let mut options_state = ListState::default();
-    if options_focused {
-        options_state.select(Some(app.options_index));
+    // --- Team popup overlay ---
+    if let Some(PopupAction::TeamDialog { selected_index }) = app.popup {
+        let area = f.area();
+        let popup_width = 30u16;
+        let popup_height = (app.teams.len() + 2).min(area.height as usize) as u16;
+        let x = area.width.saturating_sub(popup_width) / 2;
+        let y = area.height.saturating_sub(popup_height) / 2;
+        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
+
+        f.render_widget(Clear, popup_area);
+        f.render_widget(
+            Block::default().borders(Borders::ALL).title(" Select Team "),
+            popup_area,
+        );
+
+        let inner = Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width.saturating_sub(2),
+            popup_area.height.saturating_sub(2),
+        );
+        let items: Vec<ListItem> = app.teams.iter().map(|t| ListItem::new(t.as_str())).collect();
+        let list = List::new(items)
+            .highlight_symbol("> ")
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        let mut list_state = ListState::default();
+        list_state.select(Some(selected_index));
+        f.render_stateful_widget(list, inner, &mut list_state);
+        return;
     }
-    f.render_stateful_widget(options_list, chunks[2], &mut options_state);
-
-    // --- Footer (contextual) ---
-    let footer_text = match app.focused_panel {
-        Panel::Spec => {
-            "  \u{2191}\u{2193} navigate  \u{2190}\u{2192} switch tab  Tab panel  Enter confirm  q quit"
-        }
-        Panel::Team => "  \u{2191}\u{2193} navigate  Tab panel  Enter confirm  q quit",
-        Panel::Options => "  \u{2191}\u{2193} navigate  Space toggle  Tab panel  q quit",
-    };
-    f.render_widget(Paragraph::new(Line::from(footer_text)), chunks[3]);
 
     // --- Action popup overlay ---
     if let Some(PopupAction::ActionDialog { ref selected }) = app.popup {
