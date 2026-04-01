@@ -13,6 +13,7 @@ pub struct ScheduledRun {
     pub headless: bool,
     pub scheduled_at: DateTime<Local>,
     pub plist_path: PathBuf,
+    pub account: Option<String>,
 }
 
 /// Generate the plist XML content for a scheduled run.
@@ -23,6 +24,7 @@ pub fn generate_plist_xml(
     spec: &str,
     team: &str,
     headless: bool,
+    account: Option<&str>,
     working_dir: &Path,
     scheduled_at: DateTime<Local>,
     binary_path: &Path,
@@ -45,6 +47,10 @@ pub fn generate_plist_xml(
     ];
     if headless {
         program_args.push("        <string>--headless</string>".to_string());
+    }
+    if let Some(label) = account {
+        program_args.push("        <string>--account</string>".to_string());
+        program_args.push(format!("        <string>{label}</string>"));
     }
     program_args.push("        <string>--cleanup-plist</string>".to_string());
     program_args.push(format!("        <string>{plist}</string>"));
@@ -149,7 +155,7 @@ pub fn schedule_run(
 
     let binary_path = std::env::current_exe().context("Failed to resolve binary path")?;
 
-    let xml = generate_plist_xml(spec, team, headless, working_dir, scheduled_at, &binary_path, &plist_path)?;
+    let xml = generate_plist_xml(spec, team, headless, None, working_dir, scheduled_at, &binary_path, &plist_path)?;
 
     std::fs::write(&plist_path, &xml)
         .with_context(|| format!("Failed to write plist to {}", plist_path.display()))?;
@@ -170,6 +176,7 @@ pub fn schedule_run(
         headless,
         scheduled_at,
         plist_path,
+        account: None,
     })
 }
 
@@ -211,10 +218,11 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
     // Extract ProgramArguments strings
     let args = extract_program_arguments(&content)?;
 
-    // Parse spec, team, headless from ProgramArguments
+    // Parse spec, team, headless, account from ProgramArguments
     let mut spec: Option<String> = None;
     let mut team: Option<String> = None;
     let mut headless = false;
+    let mut account: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -229,6 +237,10 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
             }
             "--headless" => {
                 headless = true;
+            }
+            "--account" => {
+                i += 1;
+                account = args.get(i).cloned();
             }
             _ => {}
         }
@@ -253,6 +265,7 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
         headless,
         scheduled_at,
         plist_path: path.to_path_buf(),
+        account,
     })
 }
 

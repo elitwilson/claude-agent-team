@@ -53,6 +53,7 @@ fn test_plist_contains_label() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -69,6 +70,7 @@ fn test_plist_wraps_in_caffeinate() {
         "my-feature",
         "dev-team",
         true,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -87,6 +89,7 @@ fn test_plist_includes_run_args() {
         "my-feature",
         "dev-team",
         true,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -108,6 +111,7 @@ fn test_plist_excludes_headless_when_false() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -125,6 +129,7 @@ fn test_plist_includes_cleanup_plist_flag() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -142,6 +147,7 @@ fn test_plist_includes_working_directory() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -159,6 +165,7 @@ fn test_plist_includes_calendar_interval() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -180,6 +187,7 @@ fn test_plist_includes_binary_path() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -196,6 +204,7 @@ fn test_plist_is_valid_xml() {
         "my-feature",
         "dev-team",
         false,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-bros"),
@@ -341,6 +350,106 @@ fn test_list_pending_in_ignores_non_matching_files() {
 
     let runs = list_pending_in(dir.path()).unwrap();
     assert_eq!(runs.len(), 1);
+}
+
+// --- generate_plist_xml: account encoding ---
+
+#[test]
+fn test_plist_includes_account_flag_when_provided() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "my-feature",
+        "dev-team",
+        false,
+        Some("work"),
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-bros"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+    )
+    .unwrap();
+    assert!(xml.contains("--account"));
+    assert!(xml.contains("work"));
+}
+
+#[test]
+fn test_plist_excludes_account_flag_when_none() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "my-feature",
+        "dev-team",
+        false,
+        None,
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-bros"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+    )
+    .unwrap();
+    assert!(!xml.contains("--account"));
+}
+
+// --- parse_plist: --account extraction ---
+
+const FIXTURE_PLIST_WITH_ACCOUNT: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude-agent-team.my-feature</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>/usr/local/bin/claude-bros</string>
+        <string>run</string>
+        <string>--spec</string>
+        <string>my-feature</string>
+        <string>--team</string>
+        <string>dev-team</string>
+        <string>--account</string>
+        <string>work</string>
+        <string>--cleanup-plist</string>
+        <string>/tmp/com.claude-agent-team.my-feature.plist</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/test/project</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Month</key>
+        <integer>4</integer>
+        <key>Day</key>
+        <integer>15</integer>
+        <key>Hour</key>
+        <integer>14</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+</dict>
+</plist>
+"#;
+
+#[test]
+fn test_parse_plist_extracts_account_when_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let mut f = std::fs::File::create(&plist_file).unwrap();
+    f.write_all(FIXTURE_PLIST_WITH_ACCOUNT.as_bytes()).unwrap();
+
+    let run = parse_plist(&plist_file).unwrap();
+    assert_eq!(run.account, Some("work".to_string()));
+}
+
+#[test]
+fn test_parse_plist_account_is_none_for_legacy_plist_without_account() {
+    // FIXTURE_PLIST has no --account arg — backward compat: account = None
+    let dir = tempfile::tempdir().unwrap();
+    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let mut f = std::fs::File::create(&plist_file).unwrap();
+    f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
+
+    let run = parse_plist(&plist_file).unwrap();
+    assert!(run.account.is_none());
 }
 
 // --- cleanup_plist ---

@@ -21,6 +21,7 @@ fn test_parse_all_flags() {
         team: "feature-dev".to_string(),
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/com.claude-agent-team.test.plist")),
+        account: None,
     });
 }
 
@@ -36,6 +37,7 @@ fn test_parse_required_flags_only() {
         team: "my-team".to_string(),
         headless: false,
         cleanup_plist: None,
+        account: None,
     });
 }
 
@@ -53,6 +55,7 @@ fn test_parse_flags_in_any_order() {
         team: "dev".to_string(),
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
+        account: None,
     });
 }
 
@@ -91,5 +94,50 @@ fn test_unknown_flag_returns_error() {
 #[test]
 fn test_spec_flag_missing_value_returns_error() {
     let input = args(&["--spec", "--team", "dev"]);
+    assert!(parse_run_args(&input).is_err());
+}
+
+// --- parse_run_args: --account flag ---
+
+#[test]
+fn test_parse_account_flag() {
+    let input = args(&[
+        "--spec", "foo.md",
+        "--team", "dev",
+        "--account", "work",
+    ]);
+    let result = parse_run_args(&input).unwrap();
+    assert_eq!(result.account, Some("work".to_string()));
+}
+
+#[test]
+fn test_parse_account_flag_with_all_flags() {
+    let input = args(&[
+        "--spec", "foo.md",
+        "--team", "dev",
+        "--headless",
+        "--account", "personal",
+        "--cleanup-plist", "/tmp/test.plist",
+    ]);
+    let result = parse_run_args(&input).unwrap();
+    assert_eq!(result, RunArgs {
+        spec: "foo.md".to_string(),
+        team: "dev".to_string(),
+        headless: true,
+        cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
+        account: Some("personal".to_string()),
+    });
+}
+
+#[test]
+fn test_account_flag_defaults_to_none() {
+    let input = args(&["--spec", "foo.md", "--team", "dev"]);
+    let result = parse_run_args(&input).unwrap();
+    assert!(result.account.is_none());
+}
+
+#[test]
+fn test_account_flag_missing_value_returns_error() {
+    let input = args(&["--spec", "foo.md", "--team", "dev", "--account"]);
     assert!(parse_run_args(&input).is_err());
 }

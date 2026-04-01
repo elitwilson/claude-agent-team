@@ -9,6 +9,7 @@ pub struct RunArgs {
     pub team: String,
     pub headless: bool,
     pub cleanup_plist: Option<PathBuf>,
+    pub account: Option<String>,
 }
 
 /// Parse `run` subcommand flags from an arg iterator.
@@ -20,6 +21,7 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
     let mut team: Option<String> = None;
     let mut headless = false;
     let mut cleanup_plist: Option<PathBuf> = None;
+    let mut account: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -44,6 +46,11 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
                     val.ok_or_else(|| anyhow::anyhow!("--cleanup-plist requires a value"))?,
                 ));
             }
+            "--account" => {
+                i += 1;
+                let val = args.get(i).filter(|v| !v.starts_with("--"));
+                account = Some(val.ok_or_else(|| anyhow::anyhow!("--account requires a value"))?.clone());
+            }
             other => {
                 anyhow::bail!("Unknown flag: {other}");
             }
@@ -56,6 +63,7 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
         team: team.ok_or_else(|| anyhow::anyhow!("--team is required"))?,
         headless,
         cleanup_plist,
+        account,
     })
 }
 
