@@ -38,6 +38,38 @@ No gaps, no misdirection. Tests target observable behavior (query results, struc
 
 All spec-required behaviors have corresponding test coverage. The direct state-injection approach in `test_confirm_picker_on_success_returns_to_launcher_and_sets_status_message` is explicitly sanctioned by the spec's smoke test note. No misdirection and no implementation detail testing detected.
 
+## Task 4: ui.rs layout and rendering
+
+**Verdict: Flagged**
+
+### Requirements Checklist (derived from spec)
+
+1. Spec table renders a "Run Info" column header — covered by `test_render_shows_run_info_column_header`
+2. Scheduled spec: Run Info column shows team and scheduled datetime — covered by `test_render_shows_scheduled_run_info_for_spec` (team and month asserted)
+3. Last-run spec: Run Info column shows team and completion date — covered by `test_render_shows_last_run_info_for_spec` (team and month asserted)
+4. Run Info column is blank when neither scheduled nor last-run applies — covered by `test_render_run_info_blank_when_no_info`
+5. **Scheduled run info takes display priority over last-run when both are present — NOT COVERED. No test constructs an `App` with both a `Scheduled` and a `LastRun` entry for the same spec and asserts only the scheduled info appears.**
+6. Status message rendered in footer/status bar — covered by `test_render_shows_status_message_in_footer`
+7. CancelDialog popup renders showing spec name, scheduled team, and scheduled datetime — **PARTIALLY COVERED. `test_render_shows_cancel_dialog_popup` only asserts "Cancel"/"cancel" and the team name. The spec requires the dialog to show the spec name and datetime as well — neither is asserted.**
+
+### Gaps
+
+**Gap 1 — Missing test: scheduled display priority over last-run (spec requirement: "Scheduled run info takes display priority over last-run info when both are present")**
+
+A test is needed that populates `run_info` with both a `SpecRunInfo::Scheduled` and a `SpecRunInfo::LastRun` entry for the same spec, renders, and asserts:
+- The scheduled team/datetime appears in the Run Info column
+- The last-run info does NOT appear (or at minimum that scheduled info takes precedence)
+
+**Gap 2 — CancelDialog missing spec name and datetime assertions (spec requirement: "shows the spec name, scheduled team, and scheduled datetime")**
+
+`test_render_shows_cancel_dialog_popup` checks for "Cancel"/"cancel" and the team name but never asserts the spec slug/name or the datetime appear in the rendered output. Both are required by the spec.
+
+### Notes
+
+Styling (dim vs. normal) is not verified in the rendering tests, but `TestBackend` output may not expose style attributes as plain text — this is acceptable since it is a rendering infrastructure limitation rather than a behavioral gap. The two flagged gaps are strictly observable behavior requirements stated in the spec.
+
+---
+
 ## Task 2: App state changes
 
 **Verdict: Approved**

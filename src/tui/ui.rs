@@ -3,6 +3,8 @@ use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use chrono::{DateTime, Local};
+
 use anyhow::Result;
 use crossterm::{
     event::{self, Event, KeyCode},
@@ -15,16 +17,20 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, TableState},
 };
 
-use super::app::{ActionChoice, App, OPTIONS_ITEMS, Panel, PopupAction, Screen, SchedulePickerState, SpecTab, TuiResult};
+use super::app::{ActionChoice, App, Panel, PopupAction, Screen, SchedulePickerState, SpecRunInfo, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::config::{SpecEntry, SpecStatus};
-use crate::metrics::db::init_db;
+use crate::metrics::db::{init_db, last_run_for_project};
 use crate::metrics::query::fetch_runs;
 use crate::prefs::Prefs;
+use crate::scheduler;
+
+#[cfg(test)]
+mod tests;
 
 /// Run the TUI, returning the user's selection or None if they quit.
 pub fn run_tui(
@@ -34,8 +40,8 @@ pub fn run_tui(
     cwd: &Path,
 ) -> Result<Option<TuiResult>> {
     let prefs = Prefs::load();
-    // TODO Task 4: load pending runs and last-run data before constructing App
-    let mut app = App::new(specs, teams, default_team, prefs, HashMap::new(), cwd.to_path_buf());
+    let run_info = load_run_info(cwd);
+    let mut app = App::new(specs, teams, default_team, prefs, run_info, cwd.to_path_buf());
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -64,7 +70,17 @@ where
         terminal.draw(|f| render(f, app))?;
 
         if let Event::Key(key) = event::read()? {
+            // Clear any lingering status message on the first keypress after it was set
+            app.status_message = None;
+
             match app.screen {
+                Screen::Launcher if matches!(app.popup, Some(PopupAction::CancelDialog { .. })) => {
+                    match key.code {
+                        KeyCode::Enter => app.confirm_cancel_dialog(),
+                        KeyCode::Esc => app.dismiss_popup(),
+                        _ => {}
+                    }
+                }
                 Screen::Launcher if app.popup.is_some() => match key.code {
                     KeyCode::Up => app.popup_move_up(),
                     KeyCode::Down => app.popup_move_down(),
@@ -155,6 +171,47 @@ fn load_metrics(app: &mut App) {
     app.open_metrics(state);
 }
 
+/// Load initial run_info from pending launchd plists and last-run metrics DB.
+/// Non-fatal: returns empty map if either source fails or is absent.
+fn load_run_info(cwd: &Path) -> HashMap<String, SpecRunInfo> {
+    let mut run_info: HashMap<String, SpecRunInfo> = HashMap::new();
+
+    // Load last-run data from metrics DB (lower priority)
+    let db_path = env::var_os("HOME").map(|h| {
+        PathBuf::from(h)
+            .join(".claude")
+            .join("claude-agent-team-metrics.db")
+    });
+    if let Some(path) = db_path.filter(|p| p.exists()) {
+        if let Ok(conn) = rusqlite::Connection::open(&path) {
+            if init_db(&conn).is_ok() {
+                let project = cwd.to_str().unwrap_or("").replace('/', "-");
+                if let Ok(last_runs) = last_run_for_project(&conn, &project) {
+                    for (slug, lr) in last_runs {
+                        run_info.insert(slug, SpecRunInfo::LastRun {
+                            team: lr.team,
+                            completed_at: lr.completed_at,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Load pending scheduled runs (higher priority — overwrite LastRun entries)
+    if let Ok(pending) = scheduler::list_pending() {
+        for sr in pending {
+            run_info.insert(sr.spec.clone(), SpecRunInfo::Scheduled {
+                team: sr.team.clone(),
+                at: sr.scheduled_at,
+                plist_path: sr.plist_path.clone(),
+            });
+        }
+    }
+
+    run_info
+}
+
 fn render(f: &mut ratatui::Frame, app: &mut App) {
     match app.screen {
         Screen::Metrics => {
@@ -218,23 +275,55 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                     .block(spec_block);
                 f.render_widget(p, chunks[0]);
             } else {
-                let spec_items: Vec<ListItem> = visible
-                    .iter()
-                    .map(|s| {
-                        let item = ListItem::new(s.name.as_str());
-                        match s.status {
-                            SpecStatus::Complete => item.style(Style::default().fg(Color::Green)),
-                            SpecStatus::Blocked => item.style(Style::default().fg(Color::Red)),
-                            _ => item,
+                let rows: Vec<Row> = visible.iter().map(|s| {
+                    let slug = s.name.strip_suffix(".md").unwrap_or(&s.name);
+                    let status_text = match s.status {
+                        SpecStatus::Complete => "complete",
+                        SpecStatus::Blocked => "blocked",
+                        SpecStatus::Ready => "ready",
+                        _ => "",
+                    };
+                    let run_info_cell = match app.run_info.get(slug) {
+                        Some(SpecRunInfo::Scheduled { team, at, .. }) => {
+                            Cell::from(format!("{} @ {}", team, at.format("%a %b %-d %-I:%M%P")))
                         }
-                    })
-                    .collect();
-                let spec_list = List::new(spec_items)
-                    .block(spec_block)
-                    .highlight_symbol("> ");
-                let mut spec_state = ListState::default();
-                spec_state.select(Some(app.spec_index));
-                f.render_stateful_widget(spec_list, chunks[0], &mut spec_state);
+                        Some(SpecRunInfo::LastRun { team, completed_at }) => {
+                            let local: DateTime<Local> = DateTime::from(completed_at.clone());
+                            Cell::from(format!("{} · {}", team, local.format("%b %-d")))
+                                .style(Style::default().add_modifier(Modifier::DIM))
+                        }
+                        None => Cell::from(""),
+                    };
+                    let name_style = match s.status {
+                        SpecStatus::Complete => Style::default().fg(Color::Green),
+                        SpecStatus::Blocked => Style::default().fg(Color::Red),
+                        _ => Style::default(),
+                    };
+                    Row::new(vec![
+                        Cell::from(s.name.as_str()).style(name_style),
+                        Cell::from(status_text),
+                        run_info_cell,
+                    ])
+                }).collect();
+
+                let header = Row::new(vec![
+                    Cell::from("Spec").style(Style::default().add_modifier(Modifier::BOLD)),
+                    Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
+                    Cell::from("Run Info").style(Style::default().add_modifier(Modifier::BOLD)),
+                ]);
+
+                let table = Table::new(rows, [
+                    Constraint::Min(10),
+                    Constraint::Length(10),
+                    Constraint::Length(28),
+                ])
+                .header(header)
+                .block(spec_block)
+                .highlight_symbol("> ");
+
+                let mut table_state = TableState::default();
+                table_state.select(Some(app.spec_index));
+                f.render_stateful_widget(table, chunks[0], &mut table_state);
             }
         }
         SpecTab::Requirements => {
@@ -295,11 +384,19 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     f.render_stateful_widget(options_list, chunks[1], &mut options_state);
 
     // --- Footer ---
-    let footer_text = match app.focused_panel {
-        Panel::Spec => "  ↑↓ navigate  ←→ switch tab  Tab panel  Enter confirm  q quit",
-        Panel::Options => "  ↑↓ navigate  Space toggle  Tab panel  q quit",
+    let footer_widget = if let Some(ref msg) = app.status_message {
+        Paragraph::new(Line::from(Span::styled(
+            msg.as_str(),
+            Style::default().fg(Color::Cyan),
+        )))
+    } else {
+        let footer_text = match app.focused_panel {
+            Panel::Spec => "  ↑↓ navigate  ←→ switch tab  Tab panel  Enter confirm  q quit",
+            Panel::Options => "  ↑↓ navigate  Space toggle  Tab panel  q quit",
+        };
+        Paragraph::new(Line::from(footer_text))
     };
-    f.render_widget(Paragraph::new(Line::from(footer_text)), chunks[2]);
+    f.render_widget(footer_widget, chunks[2]);
 
     // --- Team popup overlay ---
     if let Some(PopupAction::TeamDialog { selected_index }) = app.popup {
@@ -362,5 +459,42 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         let mut list_state = ListState::default();
         list_state.select(Some(selected_index));
         f.render_stateful_widget(list, inner, &mut list_state);
+        return;
+    }
+
+    // --- CancelDialog popup overlay ---
+    if let Some(PopupAction::CancelDialog { ref spec_slug, ref team, at }) = app.popup.clone() {
+        let area = f.area();
+        let popup_width = 50u16;
+        let popup_height = 7u16;
+        let x = area.width.saturating_sub(popup_width) / 2;
+        let y = area.height.saturating_sub(popup_height) / 2;
+        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
+
+        f.render_widget(Clear, popup_area);
+        f.render_widget(
+            Block::default().borders(Borders::ALL).title(" Cancel Scheduled Run "),
+            popup_area,
+        );
+
+        let inner = Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width.saturating_sub(2),
+            popup_area.height.saturating_sub(2),
+        );
+
+        let time_str = at.format("%a %b %-d %-I:%M%P").to_string();
+        let lines = vec![
+            Line::from(format!("  Spec:  {}", spec_slug)),
+            Line::from(format!("  Team:  {}", team)),
+            Line::from(format!("  Time:  {}", time_str)),
+            Line::from(""),
+            Line::from(Span::styled(
+                "  > Cancel Scheduled Run",
+                Style::default().add_modifier(Modifier::REVERSED),
+            )),
+        ];
+        f.render_widget(Paragraph::new(lines), inner);
     }
 }
