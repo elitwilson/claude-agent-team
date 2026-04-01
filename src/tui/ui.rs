@@ -243,6 +243,9 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         .split(f.area());
 
     // --- Spec panel ---
+    let focused_style = Style::default().fg(Color::Yellow);
+    let normal_style = Style::default();
+    let spec_focused = app.focused_panel == Panel::Spec;
     let tab_title = {
         let specs_label = if app.active_tab == SpecTab::Specs {
             Span::styled(" Specs ", Style::default().add_modifier(Modifier::BOLD))
@@ -261,7 +264,8 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     };
     let spec_block = Block::default()
         .borders(Borders::ALL)
-        .title(tab_title);
+        .title(tab_title)
+        .border_style(if spec_focused { focused_style } else { normal_style });
 
     match app.active_tab {
         SpecTab::Specs => {
@@ -285,16 +289,20 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                         SpecStatus::Ready => "ready",
                         _ => "",
                     };
-                    let run_info_cell = match app.run_info.get(slug) {
-                        Some(SpecRunInfo::Scheduled { team, at, .. }) => {
-                            Cell::from(format!("{} @ {}", team, at.format("%a %b %-d %-I:%M%P")))
-                        }
+                    let (team_cell, date_cell) = match app.run_info.get(slug) {
+                        Some(SpecRunInfo::Scheduled { team, at, .. }) => (
+                            Cell::from(team.as_str()),
+                            Cell::from(at.format("%a %b %-d %-I:%M%P").to_string()),
+                        ),
                         Some(SpecRunInfo::LastRun { team, completed_at }) => {
                             let local: DateTime<Local> = DateTime::from(completed_at.clone());
-                            Cell::from(format!("{} · {}", team, local.format("%b %-d")))
-                                .style(Style::default().add_modifier(Modifier::DIM))
+                            let dim = Style::default().add_modifier(Modifier::DIM);
+                            (
+                                Cell::from(team.as_str()).style(dim),
+                                Cell::from(local.format("%b %-d %-I:%M%P").to_string()).style(dim),
+                            )
                         }
-                        None => Cell::from(""),
+                        None => (Cell::from(""), Cell::from("")),
                     };
                     let name_style = match s.status {
                         SpecStatus::Complete => Style::default().fg(Color::Green),
@@ -304,20 +312,23 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                     Row::new(vec![
                         Cell::from(s.name.as_str()).style(name_style),
                         Cell::from(status_text),
-                        run_info_cell,
+                        team_cell,
+                        date_cell,
                     ])
                 }).collect();
 
                 let header = Row::new(vec![
                     Cell::from("Spec").style(Style::default().add_modifier(Modifier::BOLD)),
                     Cell::from("Status").style(Style::default().add_modifier(Modifier::BOLD)),
-                    Cell::from("Run Info").style(Style::default().add_modifier(Modifier::BOLD)),
+                    Cell::from("Team").style(Style::default().add_modifier(Modifier::BOLD)),
+                    Cell::from("Date / Time").style(Style::default().add_modifier(Modifier::BOLD)),
                 ]);
 
                 let table = Table::new(rows, [
                     Constraint::Min(10),
                     Constraint::Length(10),
-                    Constraint::Length(28),
+                    Constraint::Length(18),
+                    Constraint::Length(18),
                 ])
                 .header(header)
                 .block(spec_block)
@@ -352,8 +363,6 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
 
     // --- Options panel ---
     let options_focused = app.focused_panel == Panel::Options;
-    let focused_style = Style::default().fg(Color::Yellow);
-    let normal_style = Style::default();
     let option_data = [
         ("Headless", app.prefs.headless),
         ("Show Complete", app.prefs.show_complete),

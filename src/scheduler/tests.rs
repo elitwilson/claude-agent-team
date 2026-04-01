@@ -461,13 +461,11 @@ fn test_cleanup_plist_removes_file() {
     std::fs::write(&plist_file, "dummy").unwrap();
     assert!(plist_file.exists());
 
-    // cleanup_plist will try launchctl unload first (which will fail in test env),
-    // so this test verifies the function's error behavior with a non-loaded plist.
-    // In the real implementation, we expect cleanup_plist to be fatal if launchctl
-    // unload fails. This test documents that contract.
+    // launchctl unload exits 0 silently for plists that aren't registered,
+    // so cleanup_plist succeeds and removes the file.
     let result = cleanup_plist(&plist_file);
-    // launchctl unload will fail since the plist isn't actually loaded — that's fatal
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    assert!(!plist_file.exists());
 }
 
 #[test]

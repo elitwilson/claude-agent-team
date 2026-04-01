@@ -50,7 +50,8 @@ fn sample_app() -> App {
 fn test_render_shows_run_info_column_header() {
     let mut app = sample_app();
     let output = render_to_string(&mut app, 100, 20);
-    assert!(output.contains("Run Info"), "Expected 'Run Info' column header in output");
+    assert!(output.contains("Team"), "Expected 'Team' column header in output");
+    assert!(output.contains("Date / Time"), "Expected 'Date / Time' column header in output");
 }
 
 #[test]
@@ -101,9 +102,10 @@ fn test_render_shows_last_run_info_for_spec() {
         vec![],
     );
     let output = render_to_string(&mut app, 100, 20);
-    // Last-run format: "team · Jan 2" (dim)
+    // Last-run format: "Mar 15 11:00am" (dim)
     assert!(output.contains("feature-dev"), "Expected team name in last-run info");
     assert!(output.contains("Mar"), "Expected month in last-run info");
+    assert!(output.contains("am") || output.contains("pm"), "Expected time (am/pm) in last-run info");
 }
 
 #[test]
