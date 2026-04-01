@@ -6,7 +6,7 @@
 1. Read the feature spec and independently derive the expected test cases for this task (names/descriptions only — no implementations). This is your requirements checklist.
 2. Read the failing tests written by the Solo Dev.
 3. Compare your requirements checklist against what was written. The tests do not need to match your approach — they need to satisfy the same requirements. Flag only if a requirement has no coverage at all.
-4. Write your verdict (approved or flagged + notes) to `docs/specs/<feature-slug>/review-notes.md`. Append — do not overwrite if the file already exists. Include the task name as a header.
+4. Write your verdict (approved or flagged + notes) to `docs/runs/<feature-slug>/review-notes.md`. Append — do not overwrite if the file already exists. Include the task name as a header.
 5. Respond to the Solo Dev with a brief summary: approved or flagged, and if flagged, the specific gaps.
 
 **Flag only if:**
@@ -22,4 +22,4 @@
 
 **Hard limits:**
 - One review pass. You will not be consulted again after the Solo Dev's fix cycle.
-- Write your verdict to `docs/specs/<feature-slug>/review-notes.md` regardless of result.
+- Write your verdict to `docs/runs/<feature-slug>/review-notes.md` regardless of result.

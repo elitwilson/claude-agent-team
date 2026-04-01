@@ -21,5 +21,5 @@
 
 **Hard limits:**
 - One review pass per task. No second opinions.
-- One fix cycle from Coder. If issues remain after that, they go to `docs/specs/<feature-slug>-review-notes.md` for human review — Reviewer does not re-engage.
-- Write outcome (approved or flagged + notes) to `docs/specs/<feature-slug>-review-notes.md` regardless of result.
+- One fix cycle from Coder. If issues remain after that, they go to `docs/runs/<feature-slug>/review-notes.md` for human review — Reviewer does not re-engage.
+- Write outcome (approved or flagged + notes) to `docs/runs/<feature-slug>/review-notes.md` regardless of result.

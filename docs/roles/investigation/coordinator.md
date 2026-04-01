@@ -7,7 +7,7 @@
 - Determine how many investigators to spawn. Default is 2 unless the brief explicitly requests more or fewer. Each investigator should have a clearly bounded, non-overlapping sub-question.
 - Spawn investigators in parallel. Pass each one: their role doc, the full brief, and their specific sub-question.
 - Wait for all investigators to complete and return findings.
-- Synthesize findings into a single coherent report written to `docs/specs/<feature-slug>/investigation-report.md`. The report should directly answer the central question, surface any conflicts or gaps between investigator findings, and flag anything that requires human follow-up.
+- Synthesize findings into a single coherent report written to `docs/runs/<feature-slug>/investigation-report.md`. The report should directly answer the central question, surface any conflicts or gaps between investigator findings, and flag anything that requires human follow-up.
 - After writing the report, update the input document's `status` frontmatter to `complete`.
 
 **Rules:**

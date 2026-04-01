@@ -20,7 +20,7 @@ For each task after writing failing tests, spawn a sub-agent and include in the 
 - The full contents of the reviewer role doc
 - The full text of the feature spec
 - The full text of the failing tests you just wrote
-- The path to write its verdict: `docs/specs/<feature-slug>/review-notes.md`
+- The path to write its verdict: `docs/runs/<feature-slug>/review-notes.md`
 - That it must append (not overwrite) if the file already exists
 
 The sub-agent is one-shot — it reviews, writes its verdict, and terminates. Do not reuse it across tasks.
@@ -31,5 +31,5 @@ The sub-agent is one-shot — it reviews, writes its verdict, and terminates. Do
 - Do not modify files outside the spec's stated scope
 - Commit after each completed task — not one giant commit at the end
 - Do not push to remote
-- Log ambiguities and assumptions to `docs/specs/<feature-slug>/decisions.md` rather than halting
+- Log ambiguities and assumptions to `docs/runs/<feature-slug>/decisions.md` rather than halting
 - After all tasks are complete, update the spec file's `status` frontmatter to `complete` if all tasks finished successfully, or `blocked` if any did not

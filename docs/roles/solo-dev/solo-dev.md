@@ -17,5 +17,5 @@
 - Do not modify files outside the spec's stated scope
 - Commit after each completed task — not one giant commit at the end
 - Do not push to remote
-- Log ambiguities and assumptions to `docs/specs/<feature-slug>/decisions.md` rather than halting
+- Log ambiguities and assumptions to `docs/runs/<feature-slug>/decisions.md` rather than halting
 - After all tasks are complete, update the spec file's `status` frontmatter to `complete` if all tasks finished successfully, or `blocked` if any did not

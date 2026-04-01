@@ -16,6 +16,19 @@ Plans and specs are numbered **independently**. Each directory maintains its own
 
 **Before creating a new plan or spec, always check the existing files in that directory** to determine the next number. Do not carry numbering across directories.
 
+## Run Output
+
+Agent run output (decisions logs, review notes, investigation reports) goes in `docs/runs/`, not `docs/specs/`. The slug matches the spec it was produced for.
+
+```
+docs/specs/009-multi-account.md        ← spec (permanent)
+docs/runs/009-multi-account/           ← run output (ephemeral)
+  decisions.md
+  review-notes.md
+```
+
+`docs/specs/` contains only spec files. `docs/runs/` contains only agent-generated artifacts.
+
 ## Naming Format
 
 ```
