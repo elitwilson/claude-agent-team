@@ -14,13 +14,14 @@ use crossterm::{
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, TableState},
 };
 
-use super::app::{ActionChoice, App, Panel, PopupAction, Screen, SchedulePickerState, SpecRunInfo, SpecTab, TuiResult};
+use super::app::{App, Panel, PopupAction, Screen, SchedulePickerState, SpecRunInfo, SpecTab, TuiResult};
+use super::widgets::{AccountDialog, ActionDialog, CancelDialog, TeamDialog};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::accounts::AccountEntry;
@@ -409,134 +410,16 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
     };
     f.render_widget(footer_widget, chunks[2]);
 
-    // --- Team popup overlay ---
-    if let Some(PopupAction::TeamDialog { selected_index }) = app.popup {
-        let area = f.area();
-        let popup_width = 30u16;
-        let popup_height = (app.teams.len() + 2).min(area.height as usize) as u16;
-        let x = area.width.saturating_sub(popup_width) / 2;
-        let y = area.height.saturating_sub(popup_height) / 2;
-        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
-
-        f.render_widget(Clear, popup_area);
-        f.render_widget(
-            Block::default().borders(Borders::ALL).title(" Select Team "),
-            popup_area,
-        );
-
-        let inner = Rect::new(
-            popup_area.x + 1,
-            popup_area.y + 1,
-            popup_area.width.saturating_sub(2),
-            popup_area.height.saturating_sub(2),
-        );
-        let items: Vec<ListItem> = app.teams.iter().map(|t| ListItem::new(t.as_str())).collect();
-        let list = List::new(items)
-            .highlight_symbol("> ")
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-        let mut list_state = ListState::default();
-        list_state.select(Some(selected_index));
-        f.render_stateful_widget(list, inner, &mut list_state);
-        return;
-    }
-
-    // --- Account picker popup overlay ---
-    if let Some(PopupAction::AccountDialog { selected_index }) = app.popup {
-        let area = f.area();
-        let popup_width = 30u16;
-        let popup_height = (app.accounts.len() + 2).min(area.height as usize) as u16;
-        let x = area.width.saturating_sub(popup_width) / 2;
-        let y = area.height.saturating_sub(popup_height) / 2;
-        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
-
-        f.render_widget(Clear, popup_area);
-        f.render_widget(
-            Block::default().borders(Borders::ALL).title(" Select Account "),
-            popup_area,
-        );
-
-        let inner = Rect::new(
-            popup_area.x + 1,
-            popup_area.y + 1,
-            popup_area.width.saturating_sub(2),
-            popup_area.height.saturating_sub(2),
-        );
-        let items: Vec<ListItem> = app.accounts.iter().map(|a| ListItem::new(a.label.as_str())).collect();
-        let list = List::new(items)
-            .highlight_symbol("> ")
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-        let mut list_state = ListState::default();
-        list_state.select(Some(selected_index));
-        f.render_stateful_widget(list, inner, &mut list_state);
-        return;
-    }
-
-    // --- Action popup overlay ---
-    if let Some(PopupAction::ActionDialog { ref selected }) = app.popup {
-        let area = f.area();
-        let popup_width = 24u16;
-        let popup_height = 6u16;
-        let x = area.width.saturating_sub(popup_width) / 2;
-        let y = area.height.saturating_sub(popup_height) / 2;
-        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
-
-        f.render_widget(Clear, popup_area);
-        f.render_widget(
-            Block::default().borders(Borders::ALL).title(" Action "),
-            popup_area,
-        );
-
-        let inner = Rect::new(popup_area.x + 1, popup_area.y + 1, popup_area.width.saturating_sub(2), popup_area.height.saturating_sub(2));
-        let items: Vec<ListItem> = vec![
-            ListItem::new("  Execute now"),
-            ListItem::new("  Schedule for later"),
-        ];
-        let selected_index = match selected {
-            ActionChoice::ExecuteNow => 0,
-            ActionChoice::ScheduleLater => 1,
-        };
-        let list = List::new(items)
-            .highlight_symbol("> ")
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-        let mut list_state = ListState::default();
-        list_state.select(Some(selected_index));
-        f.render_stateful_widget(list, inner, &mut list_state);
-        return;
-    }
-
-    // --- CancelDialog popup overlay ---
-    if let Some(PopupAction::CancelDialog { ref spec_slug, ref team, at }) = app.popup.clone() {
-        let area = f.area();
-        let popup_width = 50u16;
-        let popup_height = 7u16;
-        let x = area.width.saturating_sub(popup_width) / 2;
-        let y = area.height.saturating_sub(popup_height) / 2;
-        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
-
-        f.render_widget(Clear, popup_area);
-        f.render_widget(
-            Block::default().borders(Borders::ALL).title(" Cancel Scheduled Run "),
-            popup_area,
-        );
-
-        let inner = Rect::new(
-            popup_area.x + 1,
-            popup_area.y + 1,
-            popup_area.width.saturating_sub(2),
-            popup_area.height.saturating_sub(2),
-        );
-
-        let time_str = at.format("%a %b %-d %-I:%M%P").to_string();
-        let lines = vec![
-            Line::from(format!("  Spec:  {}", spec_slug)),
-            Line::from(format!("  Team:  {}", team)),
-            Line::from(format!("  Time:  {}", time_str)),
-            Line::from(""),
-            Line::from(Span::styled(
-                "  > Cancel Scheduled Run",
-                Style::default().add_modifier(Modifier::REVERSED),
-            )),
-        ];
-        f.render_widget(Paragraph::new(lines), inner);
+    // --- Popup overlays ---
+    match &app.popup {
+        Some(PopupAction::TeamDialog { selected_index }) =>
+            f.render_widget(TeamDialog { teams: &app.teams, selected_index: *selected_index }, f.area()),
+        Some(PopupAction::AccountDialog { selected_index }) =>
+            f.render_widget(AccountDialog { accounts: &app.accounts, selected_index: *selected_index }, f.area()),
+        Some(PopupAction::ActionDialog { selected }) =>
+            f.render_widget(ActionDialog { selected: *selected }, f.area()),
+        Some(PopupAction::CancelDialog { spec_slug, team, at }) =>
+            f.render_widget(CancelDialog { spec_slug: spec_slug.as_str(), team: team.as_str(), at: *at }, f.area()),
+        None => {}
     }
 }
