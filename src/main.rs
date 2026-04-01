@@ -1,3 +1,4 @@
+mod accounts;
 mod config;
 mod install;
 mod metrics;

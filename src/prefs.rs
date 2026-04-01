@@ -10,6 +10,8 @@ pub struct Prefs {
     pub show_complete: bool,
     #[serde(default = "default_true")]
     pub show_blocked: bool,
+    #[serde(default)]
+    pub default_account: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -22,6 +24,7 @@ impl Default for Prefs {
             headless: false,
             show_complete: true,
             show_blocked: true,
+            default_account: None,
         }
     }
 }
