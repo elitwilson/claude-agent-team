@@ -65,7 +65,7 @@ pub fn run_claude(
     cmd.env("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", "1");
 
     if let Some(token) = oauth_token {
-        cmd.env("CLAUDE_OAUTH_TOKEN", token);
+        cmd.env("CLAUDE_CODE_OAUTH_TOKEN", token);
     }
 
     if headless {
