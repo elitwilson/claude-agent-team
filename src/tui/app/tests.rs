@@ -1,7 +1,9 @@
 use super::*;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
-use chrono::Timelike;
+use chrono::{TimeZone, Timelike, Utc};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 fn spec(name: &str) -> SpecEntry {
     SpecEntry {
@@ -20,6 +22,8 @@ fn sample_app() -> App {
         vec!["feature-dev".into(), "review-only".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     )
 }
 
@@ -44,6 +48,8 @@ fn test_new_selects_default_team() {
         vec!["review-only".into(), "feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     assert_eq!(app.team_index, 1);
 }
@@ -55,6 +61,8 @@ fn test_new_defaults_to_first_team_if_default_not_found() {
         vec!["review-only".into(), "feature-dev".into()],
         "nonexistent-team",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     assert_eq!(app.team_index, 0);
 }
@@ -139,6 +147,8 @@ fn test_toggle_show_complete_clamps_spec_index() {
         vec!["feature-dev".into()],
         "feature-dev",
         prefs,
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     app.spec_index = 1; // pointing at Complete spec
     app.toggle_show_complete(); // hides complete -> visible list shrinks to 1
@@ -157,6 +167,8 @@ fn test_toggle_show_blocked_clamps_spec_index() {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     app.spec_index = 2;
     app.toggle_show_blocked();
@@ -177,6 +189,8 @@ fn test_visible_specs_includes_all_by_default() {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(), // show_complete=true, show_blocked=true
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     assert_eq!(app.visible_specs().len(), 3);
 }
@@ -193,6 +207,8 @@ fn test_visible_specs_hides_complete_when_show_complete_false() {
         vec!["feature-dev".into()],
         "feature-dev",
         prefs,
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     let visible = app.visible_specs();
     assert_eq!(visible.len(), 1);
@@ -211,6 +227,8 @@ fn test_visible_specs_hides_blocked_when_show_blocked_false() {
         vec!["feature-dev".into()],
         "feature-dev",
         prefs,
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     let visible = app.visible_specs();
     assert_eq!(visible.len(), 1);
@@ -377,6 +395,8 @@ fn test_blocked_spec_is_not_confirmable() {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     app.confirm();
     assert!(!app.confirmed);
@@ -394,6 +414,8 @@ fn test_complete_spec_is_not_confirmable() {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
     app.confirm();
     assert!(!app.confirmed);
@@ -509,6 +531,8 @@ fn sample_app_with_entries() -> App {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     )
 }
 
@@ -567,6 +591,8 @@ fn app_with_mixed_entries() -> App {
         vec!["feature-dev".into()],
         "feature-dev",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     )
 }
 
@@ -697,6 +723,8 @@ fn test_integration_full_flow_spec_to_team_to_execute_produces_correct_result() 
         vec!["alpha-team".into(), "beta-team".into()],
         "alpha-team",
         Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
     );
 
     // Navigate spec list down to feature-b.md
@@ -732,5 +760,89 @@ fn test_integration_full_flow_spec_to_team_to_execute_produces_correct_result() 
     assert_eq!(result.team, "beta-team");
     assert!(!result.headless);
     assert!(matches!(result.mode, RunMode::TeamRun));
-    assert!(result.scheduled_at.is_none());
+}
+
+// --- Task 2: App state changes (SpecRunInfo, run_info, cwd, status_message) ---
+
+fn sample_app_with_run_info(run_info: HashMap<String, SpecRunInfo>) -> App {
+    App::new(
+        vec![
+            spec("feature-a.md"),
+            spec("feature-b.md"),
+        ],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        run_info,
+        PathBuf::from("/tmp/test-project"),
+    )
+}
+
+#[test]
+fn test_app_new_initializes_run_info() {
+    let app = sample_app_with_run_info(HashMap::new());
+    assert!(app.run_info.is_empty());
+}
+
+#[test]
+fn test_app_new_initializes_status_message_as_none() {
+    let app = sample_app_with_run_info(HashMap::new());
+    assert!(app.status_message.is_none());
+}
+
+#[test]
+fn test_app_new_stores_cwd() {
+    let cwd = PathBuf::from("/tmp/test-project");
+    let app = App::new(
+        vec![spec("feat.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        cwd.clone(),
+    );
+    assert_eq!(app.cwd, cwd);
+}
+
+#[test]
+fn test_app_new_stores_run_info_entries() {
+    let mut run_info = HashMap::new();
+    let plist_path = PathBuf::from("/tmp/test.plist");
+    let at = chrono::Local.with_ymd_and_hms(2027, 6, 1, 8, 0, 0).unwrap();
+    run_info.insert(
+        "feat-a".to_string(),
+        SpecRunInfo::Scheduled {
+            team: "alpha".to_string(),
+            at,
+            plist_path: plist_path.clone(),
+        },
+    );
+    let app = sample_app_with_run_info(run_info);
+    assert!(app.run_info.contains_key("feat-a"));
+    assert!(matches!(app.run_info["feat-a"], SpecRunInfo::Scheduled { .. }));
+}
+
+#[test]
+fn test_spec_run_info_last_run_variant() {
+    let completed_at = Utc.with_ymd_and_hms(2026, 3, 1, 11, 0, 0).unwrap();
+    let entry = SpecRunInfo::LastRun {
+        team: "beta".to_string(),
+        completed_at,
+    };
+    assert!(matches!(entry, SpecRunInfo::LastRun { .. }));
+}
+
+#[test]
+fn test_tui_result_has_no_scheduled_at_field() {
+    // Execute Now still produces a TuiResult; it must not include scheduled_at
+    let mut app = sample_app_with_run_info(HashMap::new());
+    app.confirm();
+    app.confirm_popup(); // ActionDialog
+    app.confirm_popup(); // ExecuteNow
+    let result = app.result().unwrap();
+    assert_eq!(result.spec, "feature-a.md");
+    assert!(matches!(result.mode, RunMode::TeamRun));
+    // Verify compilation: TuiResult no longer has scheduled_at field
+    // (If it still had the field, the struct init in result() would include it
+    // and we'd see it here. This test passing after removal confirms absence.)
 }

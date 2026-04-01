@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::env;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use crossterm::{
@@ -30,9 +31,11 @@ pub fn run_tui(
     specs: Vec<SpecEntry>,
     teams: Vec<String>,
     default_team: &str,
+    cwd: &Path,
 ) -> Result<Option<TuiResult>> {
     let prefs = Prefs::load();
-    let mut app = App::new(specs, teams, default_team, prefs);
+    // TODO Task 4: load pending runs and last-run data before constructing App
+    let mut app = App::new(specs, teams, default_team, prefs, HashMap::new(), cwd.to_path_buf());
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

@@ -59,7 +59,7 @@ fn run() -> Result<()> {
     }
 
     // Run TUI — clears and restores terminal on exit
-    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team)?;
+    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team, &cwd)?;
     let selection = match selection {
         Some(s) => s,
         None => {
@@ -108,24 +108,6 @@ fn run() -> Result<()> {
 
     // Build full relative spec path for the prompt template (e.g. docs/specs/my-feature.md)
     let spec_file_path = format!("{}/{}", config.specs_dir, selection.spec);
-
-    // Scheduled run — hand off to launchd and exit (no preflight, no prompt render)
-    if let Some(scheduled_at) = selection.scheduled_at {
-        scheduler::schedule_run(
-            &feature_slug,
-            &selection.team,
-            true, // scheduled runs are always headless — no terminal available
-            Path::new(&cwd),
-            scheduled_at,
-        )
-        .context("Failed to schedule run")?;
-        println!(
-            "Scheduled: {} for {}",
-            selection.spec,
-            scheduled_at.format("%Y-%m-%d %I:%M %p")
-        );
-        return Ok(());
-    }
 
     // Preflight: clean check, checkout base, pull, create branch
     let branch =

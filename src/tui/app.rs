@@ -1,4 +1,7 @@
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone};
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
@@ -12,11 +15,30 @@ pub enum Screen {
     SchedulePicker,
 }
 
+/// Run info for a spec — either a pending scheduled run or the most recent completed run.
+#[derive(Debug, Clone)]
+pub enum SpecRunInfo {
+    Scheduled {
+        team: String,
+        at: DateTime<Local>,
+        plist_path: PathBuf,
+    },
+    LastRun {
+        team: String,
+        completed_at: DateTime<Utc>,
+    },
+}
+
 /// The popup shown over the launcher.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PopupAction {
     TeamDialog { selected_index: usize },
     ActionDialog { selected: ActionChoice },
+    CancelDialog {
+        spec_slug: String,
+        team: String,
+        at: DateTime<Local>,
+    },
 }
 
 /// Choices available in the action popup.
@@ -258,7 +280,6 @@ pub struct TuiResult {
     pub team: String,
     pub headless: bool,
     pub mode: RunMode,
-    pub scheduled_at: Option<DateTime<Local>>,
 }
 
 /// TUI application state.
@@ -280,7 +301,9 @@ pub struct App {
     pub metrics_state: Option<MetricsState>,
     pub popup: Option<PopupAction>,
     pub picker: SchedulePickerState,
-    pub scheduled_at: Option<DateTime<Local>>,
+    pub run_info: HashMap<String, SpecRunInfo>,
+    pub cwd: PathBuf,
+    pub status_message: Option<String>,
 }
 
 impl App {
@@ -289,6 +312,8 @@ impl App {
         teams: Vec<String>,
         default_team: &str,
         prefs: Prefs,
+        run_info: HashMap<String, SpecRunInfo>,
+        cwd: PathBuf,
     ) -> Self {
         let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
         let (requirements, specs): (Vec<SpecEntry>, Vec<SpecEntry>) = all_entries
@@ -311,7 +336,9 @@ impl App {
             metrics_state: None,
             popup: None,
             picker: SchedulePickerState::default(),
-            scheduled_at: None,
+            run_info,
+            cwd,
+            status_message: None,
         }
     }
 
@@ -488,6 +515,7 @@ impl App {
     /// Dismiss the active popup.
     /// Esc on TeamDialog → spec list (popup = None).
     /// Esc on ActionDialog → restores TeamDialog.
+    /// Esc on CancelDialog → spec list (popup = None).
     pub fn dismiss_popup(&mut self) {
         self.popup = match self.popup.take() {
             Some(PopupAction::ActionDialog { .. }) => Some(PopupAction::TeamDialog {
@@ -510,7 +538,7 @@ impl App {
                     *selected = ActionChoice::ScheduleLater;
                 }
             }
-            None => {}
+            Some(PopupAction::CancelDialog { .. }) | None => {}
         }
     }
 
@@ -525,13 +553,14 @@ impl App {
                     *selected = ActionChoice::ExecuteNow;
                 }
             }
-            None => {}
+            Some(PopupAction::CancelDialog { .. }) | None => {}
         }
     }
 
     /// Confirm the active popup selection.
     /// TeamDialog → stores team_index and opens ActionDialog.
     /// ActionDialog → ExecuteNow sets confirmed; ScheduleLater switches to SchedulePicker.
+    /// CancelDialog → handled by confirm_cancel_dialog (Task 3).
     pub fn confirm_popup(&mut self) {
         let action = match self.popup.take() {
             Some(a) => a,
@@ -552,14 +581,20 @@ impl App {
                     self.screen = Screen::SchedulePicker;
                 }
             },
+            PopupAction::CancelDialog { .. } => {
+                // Delegated to confirm_cancel_dialog — put it back and let caller route correctly
+                // (Task 3 will implement confirm_cancel_dialog)
+            }
         }
     }
 
-    /// Confirm the schedule picker: store the datetime and exit.
+    /// Confirm the schedule picker: schedule the run via launchd, update run_info, show status.
+    /// (Full implementation in Task 3 — placeholder keeps the event loop compiling.)
     pub fn confirm_picker(&mut self) {
-        if let Some(dt) = self.picker.confirm() {
-            self.scheduled_at = Some(dt);
-            self.confirmed = true;
+        if let Some(_dt) = self.picker.confirm() {
+            // TODO Task 3: call scheduler::schedule_run(), insert into run_info, set status_message
+            self.screen = Screen::Launcher;
+            self.picker = SchedulePickerState::default();
         }
     }
 
@@ -576,7 +611,6 @@ impl App {
                     team: self.teams[self.team_index].clone(),
                     headless: self.prefs.headless,
                     mode: RunMode::TeamRun,
-                    scheduled_at: self.scheduled_at,
                 })
             }
             SpecTab::Requirements => Some(TuiResult {
@@ -584,7 +618,6 @@ impl App {
                 team: self.teams[self.team_index].clone(),
                 headless: self.prefs.headless,
                 mode: RunMode::DraftRun,
-                scheduled_at: None,
             }),
         }
     }
