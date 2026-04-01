@@ -23,6 +23,7 @@ use ratatui::{
 use super::app::{ActionChoice, App, Panel, PopupAction, Screen, SchedulePickerState, SpecRunInfo, SpecTab, TuiResult};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
+use crate::accounts::AccountEntry;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::metrics::db::{init_db, last_run_for_project};
 use crate::metrics::query::fetch_runs;
@@ -38,10 +39,11 @@ pub fn run_tui(
     teams: Vec<String>,
     default_team: &str,
     cwd: &Path,
+    accounts: Vec<AccountEntry>,
 ) -> Result<Option<TuiResult>> {
     let prefs = Prefs::load();
     let run_info = load_run_info(cwd);
-    let mut app = App::new(specs, teams, default_team, prefs, run_info, cwd.to_path_buf(), vec![]);
+    let mut app = App::new(specs, teams, default_team, prefs, run_info, cwd.to_path_buf(), accounts);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -420,6 +422,37 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             popup_area.height.saturating_sub(2),
         );
         let items: Vec<ListItem> = app.teams.iter().map(|t| ListItem::new(t.as_str())).collect();
+        let list = List::new(items)
+            .highlight_symbol("> ")
+            .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+        let mut list_state = ListState::default();
+        list_state.select(Some(selected_index));
+        f.render_stateful_widget(list, inner, &mut list_state);
+        return;
+    }
+
+    // --- Account picker popup overlay ---
+    if let Some(PopupAction::AccountDialog { selected_index }) = app.popup {
+        let area = f.area();
+        let popup_width = 30u16;
+        let popup_height = (app.accounts.len() + 2).min(area.height as usize) as u16;
+        let x = area.width.saturating_sub(popup_width) / 2;
+        let y = area.height.saturating_sub(popup_height) / 2;
+        let popup_area = Rect::new(x, y, popup_width.min(area.width), popup_height.min(area.height));
+
+        f.render_widget(Clear, popup_area);
+        f.render_widget(
+            Block::default().borders(Borders::ALL).title(" Select Account "),
+            popup_area,
+        );
+
+        let inner = Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width.saturating_sub(2),
+            popup_area.height.saturating_sub(2),
+        );
+        let items: Vec<ListItem> = app.accounts.iter().map(|a| ListItem::new(a.label.as_str())).collect();
         let list = List::new(items)
             .highlight_symbol("> ")
             .highlight_style(Style::default().add_modifier(Modifier::REVERSED));

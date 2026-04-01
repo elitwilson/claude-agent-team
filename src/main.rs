@@ -59,8 +59,11 @@ fn run() -> Result<()> {
         anyhow::bail!("No team files found in {}", teams_dir.display());
     }
 
+    // Load accounts (empty vec if no config file)
+    let accounts = accounts::load_accounts();
+
     // Run TUI — clears and restores terminal on exit
-    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team, &cwd)?;
+    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team, &cwd, accounts)?;
     let selection = match selection {
         Some(s) => s,
         None => {
@@ -83,7 +86,10 @@ fn run() -> Result<()> {
         )?;
         let date = chrono::Local::now().format("%Y%m%d").to_string();
         let log_path = runner::build_log_path("drafter", &date);
-        let oauth_token = runner::load_oauth_token();
+        let oauth_token = match &selection.account {
+            Some(label) => accounts::load_token_for_account(label),
+            None => runner::load_oauth_token(),
+        };
         if oauth_token.is_none() {
             eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
         }
@@ -130,8 +136,11 @@ fn run() -> Result<()> {
     // Record start time
     let started_at = Utc::now().to_rfc3339();
 
-    // Load OAuth token
-    let oauth_token = runner::load_oauth_token();
+    // Load OAuth token — use account-specific token if account selected
+    let oauth_token = match &selection.account {
+        Some(label) => accounts::load_token_for_account(label),
+        None => runner::load_oauth_token(),
+    };
     if oauth_token.is_none() {
         eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
     }
@@ -213,7 +222,11 @@ fn run_scheduled(args: &[String]) -> Result<()> {
 
     let started_at = Utc::now().to_rfc3339();
 
-    let oauth_token = runner::load_oauth_token();
+    // Load OAuth token — use account-specific token if account set in plist args
+    let oauth_token = match &run_args.account {
+        Some(label) => accounts::load_token_for_account(label),
+        None => runner::load_oauth_token(),
+    };
     if oauth_token.is_none() {
         eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
     }

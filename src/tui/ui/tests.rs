@@ -5,6 +5,7 @@ use chrono::TimeZone;
 use ratatui::{Terminal, backend::TestBackend};
 
 use super::render;
+use crate::accounts::AccountEntry;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
 use crate::tui::app::{App, PopupAction, SpecRunInfo};
@@ -189,4 +190,50 @@ fn test_render_scheduled_takes_priority_over_last_run() {
     // Scheduled over LastRun when both would be present in the map.
     // Here we verify the Scheduled data is displayed correctly.
     assert!(output.contains("alpha-team"), "Expected scheduled team in run info");
+}
+
+// --- AccountDialog popup rendering ---
+
+#[test]
+fn test_render_shows_account_dialog_popup() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = App::new(
+        vec![spec("feature-a.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        accounts,
+    );
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 0 });
+    let output = render_to_string(&mut app, 100, 20);
+    assert!(
+        output.contains("Account") || output.contains("account"),
+        "Expected account dialog title in output"
+    );
+}
+
+#[test]
+fn test_render_account_dialog_shows_labels() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = App::new(
+        vec![spec("feature-a.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        accounts,
+    );
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 0 });
+    let output = render_to_string(&mut app, 100, 20);
+    assert!(output.contains("personal"), "Expected 'personal' account label in output");
+    assert!(output.contains("work"), "Expected 'work' account label in output");
 }
