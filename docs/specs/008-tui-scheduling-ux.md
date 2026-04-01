@@ -1,6 +1,6 @@
 ---
 number: 008
-status: ready
+status: complete
 ---
 
 # Feature: TUI Scheduling UX
