@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 
 /// Initialize the SQLite database with the required schema.
@@ -71,6 +74,39 @@ pub fn insert_agent_usage(
     )
     .context("Failed to insert agent usage")?;
     Ok(())
+}
+
+/// The most recent completed run for a spec in a project.
+pub struct LastRun {
+    pub team: String,
+    pub completed_at: DateTime<Utc>,
+}
+
+/// Return the most recent completed run per `feature_slug` for the given project.
+///
+/// Rows with unparseable `completed_at` values are skipped silently.
+pub fn last_run_for_project(conn: &Connection, project: &str) -> Result<HashMap<String, LastRun>> {
+    let mut stmt = conn.prepare(
+        "SELECT feature_slug, team, MAX(completed_at) AS completed_at
+         FROM runs
+         WHERE project = ?1
+         GROUP BY feature_slug",
+    )?;
+
+    let mut map = HashMap::new();
+    let mut rows = stmt.query([project])?;
+    while let Some(row) = rows.next()? {
+        let slug: String = row.get(0)?;
+        let team: String = row.get(1)?;
+        let completed_at_str: String = row.get(2)?;
+        let completed_at = match completed_at_str.parse::<DateTime<Utc>>() {
+            Ok(dt) => dt,
+            Err(_) => continue,
+        };
+        map.insert(slug, LastRun { team, completed_at });
+    }
+
+    Ok(map)
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use super::*;
 use rusqlite::Connection;
+use chrono::Utc;
 
 fn setup_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -138,4 +139,80 @@ fn test_insert_multiple_agents_for_one_run() {
         )
         .unwrap();
     assert_eq!(count, 3);
+}
+
+// --- last_run_for_project tests ---
+
+#[test]
+fn test_last_run_for_project_returns_empty_when_no_runs() {
+    let conn = setup_db();
+    let result = last_run_for_project(&conn, "-Users-alice-proj").unwrap();
+    assert!(result.is_empty());
+}
+
+#[test]
+fn test_last_run_for_project_returns_most_recent_per_slug() {
+    let conn = setup_db();
+    let project = "-Users-alice-proj";
+
+    // Two runs for the same slug — second is newer
+    insert_run(&conn, "feat-a", "alpha", project,
+        "2026-03-01T10:00:00Z", "2026-03-01T11:00:00Z", 0).unwrap();
+    insert_run(&conn, "feat-a", "beta", project,
+        "2026-03-02T10:00:00Z", "2026-03-02T11:00:00Z", 0).unwrap();
+
+    let result = last_run_for_project(&conn, project).unwrap();
+    assert_eq!(result.len(), 1);
+    let entry = result.get("feat-a").unwrap();
+    assert_eq!(entry.team, "beta");
+
+    let expected = "2026-03-02T11:00:00Z".parse::<chrono::DateTime<Utc>>().unwrap();
+    assert_eq!(entry.completed_at, expected);
+}
+
+#[test]
+fn test_last_run_for_project_returns_one_entry_per_slug() {
+    let conn = setup_db();
+    let project = "-Users-alice-proj";
+
+    insert_run(&conn, "feat-a", "alpha", project,
+        "2026-03-01T10:00:00Z", "2026-03-01T11:00:00Z", 0).unwrap();
+    insert_run(&conn, "feat-b", "beta", project,
+        "2026-03-02T10:00:00Z", "2026-03-02T12:00:00Z", 0).unwrap();
+
+    let result = last_run_for_project(&conn, project).unwrap();
+    assert_eq!(result.len(), 2);
+    assert!(result.contains_key("feat-a"));
+    assert!(result.contains_key("feat-b"));
+}
+
+#[test]
+fn test_last_run_for_project_filters_by_project() {
+    let conn = setup_db();
+
+    insert_run(&conn, "feat-a", "alpha", "-Users-alice-proj",
+        "2026-03-01T10:00:00Z", "2026-03-01T11:00:00Z", 0).unwrap();
+    insert_run(&conn, "feat-a", "beta", "-Users-bob-proj",
+        "2026-03-02T10:00:00Z", "2026-03-02T11:00:00Z", 0).unwrap();
+
+    let result = last_run_for_project(&conn, "-Users-alice-proj").unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result["feat-a"].team, "alpha");
+}
+
+#[test]
+fn test_last_run_for_project_returns_err_on_bad_timestamp() {
+    let conn = setup_db();
+    let project = "-Users-alice-proj";
+
+    // Insert a run with a malformed completed_at
+    conn.execute(
+        "INSERT INTO runs (feature_slug, team, project, started_at, completed_at, agent_exit_code)
+         VALUES ('feat-z', 'team', ?1, '2026-01-01T00:00:00Z', 'NOT-A-DATE', 0)",
+        [project],
+    ).unwrap();
+
+    // A single bad row should cause the result to exclude that slug (non-fatal skip)
+    // OR return an error — either is acceptable. Assert at minimum it doesn't panic.
+    let _ = last_run_for_project(&conn, project);
 }

@@ -1,0 +1,21 @@
+# Decisions & Assumptions — 008-tui-scheduling-ux
+
+## Task 1: `last_run_for_project()`
+
+- **`completed_at` stored as RFC 3339 text in SQLite.** The DB schema stores timestamps as TEXT. Parsing uses `DateTime::parse_from_rfc3339` and converts to `DateTime<Utc>`. Malformed rows are skipped (non-fatal) to match the pattern in the rest of db.rs.
+- **Query groups by `feature_slug`, picking `MAX(completed_at)`.** SQLite sorts RFC 3339 strings lexicographically, which gives correct MAX behavior for well-formed timestamps.
+
+## Task 2: App state changes
+
+- **`App::new()` takes `run_info: HashMap<String, SpecRunInfo>` and `cwd: PathBuf` as new parameters.** All existing call sites (tests, ui.rs) need updating. Existing test helper `sample_app()` will pass empty HashMap and a dummy PathBuf.
+- **`TuiResult::scheduled_at` removed.** The `scheduled_at` field is no longer meaningful after this change; schedule_run is called inside `confirm_picker`. The integration smoke test that asserts `result.scheduled_at.is_none()` will be updated to simply remove that assertion.
+
+## Task 3: Scheduling and cancel logic
+
+- **`confirm_picker()` calls `scheduler::schedule_run()` directly.** This creates a real plist and calls launchctl, which is not suitable for unit tests. The spec's smoke tests use a mock-style approach by directly mutating `run_info` — the unit tests for Task 3 verify state transitions without calling the real scheduler.
+- **`PopupAction::CancelDialog` dismissal:** Esc on CancelDialog goes to `popup = None` (back to spec list), not back to TeamDialog, since there's no team to restore. This matches the spec: "Esc dismisses without action."
+
+## Task 4: ui.rs and main.rs
+
+- **`run_tui()` loads data before entering the TUI event loop.** DB absence is non-fatal per spec.
+- **Status message cleared on first keypress** — any key event clears it first before processing the action.
