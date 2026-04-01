@@ -69,6 +69,63 @@ Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target 
 
 ---
 
+## Authentication
+
+`claude-bros` loads your Claude OAuth token from the macOS Keychain at run time and passes it to the agent session.
+
+### Single account
+
+Store one token under the default service name:
+
+```bash
+security add-generic-password -s claude-token-1 -a claude -w <your-token>
+```
+
+No further configuration needed — `claude-bros` will pick it up automatically.
+
+### Multiple accounts
+
+If you use more than one Claude account, you can store a token per account and select which one to use at launch.
+
+**Step 1 — Create the accounts config file:**
+
+```
+~/.claude/claude-agent-team-accounts.toml
+```
+
+List each account by label:
+
+```toml
+[[accounts]]
+label = "personal"
+
+[[accounts]]
+label = "work"
+```
+
+Labels are arbitrary strings. They are used as the Keychain account name and shown in the TUI picker.
+
+**Step 2 — Add each token to Keychain:**
+
+```bash
+security add-generic-password -s com.claude-agent-team -a personal -w <personal-token>
+security add-generic-password -s com.claude-agent-team -a work -w <work-token>
+```
+
+To update a token later:
+
+```bash
+security add-generic-password -U -s com.claude-agent-team -a work -w <new-token>
+```
+
+**How it works in the TUI:**
+
+- **No accounts file / empty:** app behaves as today — uses the single default token, no picker shown.
+- **One account configured:** that account's token is loaded automatically, no picker shown.
+- **Two or more accounts configured:** an account picker appears after team selection. The last-used account is pre-selected on subsequent launches.
+
+---
+
 ## Configuration
 
 `claude-bros` works with no config file — all defaults apply. To override, add a `.claude-agent-team.toml` to your target project root:
