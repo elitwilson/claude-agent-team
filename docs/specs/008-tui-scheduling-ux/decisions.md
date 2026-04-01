@@ -12,6 +12,12 @@
 
 ## Task 3: Scheduling and cancel logic
 
+- **`confirm_cancel_dialog()` plist existence check.** The spec says `cleanup_plist()` is fatal if launchctl fails. To allow unit tests to exercise the cancel state-machine without hitting launchd, `confirm_cancel_dialog` skips the launchctl call if the plist file doesn't exist and removes the entry from `run_info`. In production the plist always exists when cancelling, so this only affects tests using fake paths.
+- **Slug derivation in `open_team_popup()`.** Spec names are stored as filenames like `"feature-a.md"`. The run_info map is keyed by slug (`"feature-a"`). `open_team_popup` strips the `.md` suffix before looking up in `run_info`.
+- **`confirm_picker()` — actual scheduling deferred to launchd.** The method calls `scheduler::schedule_run()` with `self.cwd`. On success it inserts into `run_info` and sets `status_message`. On failure it sets `picker.error`. Smoke tests exercise this via direct state injection (per spec's explicit permission).
+
+## Task 4: ui.rs and main.rs
+
 - **`confirm_picker()` calls `scheduler::schedule_run()` directly.** This creates a real plist and calls launchctl, which is not suitable for unit tests. The spec's smoke tests use a mock-style approach by directly mutating `run_info` — the unit tests for Task 3 verify state transitions without calling the real scheduler.
 - **`PopupAction::CancelDialog` dismissal:** Esc on CancelDialog goes to `popup = None` (back to spec list), not back to TeamDialog, since there's no team to restore. This matches the spec: "Esc dismisses without action."
 

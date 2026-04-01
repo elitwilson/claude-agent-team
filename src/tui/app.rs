@@ -6,6 +6,7 @@ use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone
 use super::metrics::MetricsState;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
+use crate::scheduler;
 
 /// Which screen is currently displayed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -497,6 +498,7 @@ impl App {
     }
 
     /// Open the team selection popup for the currently highlighted spec.
+    /// If the spec has a pending scheduled run, opens a CancelDialog instead.
     /// No-op if the spec list is empty or the selected spec is Blocked/Complete.
     pub fn open_team_popup(&mut self) {
         let visible = self.visible_specs();
@@ -507,9 +509,18 @@ impl App {
         if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
             return;
         }
-        self.popup = Some(PopupAction::TeamDialog {
-            selected_index: self.team_index,
-        });
+        let slug = selected.name.strip_suffix(".md").unwrap_or(&selected.name);
+        if let Some(SpecRunInfo::Scheduled { team, at, .. }) = self.run_info.get(slug) {
+            self.popup = Some(PopupAction::CancelDialog {
+                spec_slug: slug.to_string(),
+                team: team.clone(),
+                at: *at,
+            });
+        } else {
+            self.popup = Some(PopupAction::TeamDialog {
+                selected_index: self.team_index,
+            });
+        }
     }
 
     /// Dismiss the active popup.
@@ -589,13 +600,68 @@ impl App {
     }
 
     /// Confirm the schedule picker: schedule the run via launchd, update run_info, show status.
-    /// (Full implementation in Task 3 — placeholder keeps the event loop compiling.)
     pub fn confirm_picker(&mut self) {
-        if let Some(_dt) = self.picker.confirm() {
-            // TODO Task 3: call scheduler::schedule_run(), insert into run_info, set status_message
-            self.screen = Screen::Launcher;
-            self.picker = SchedulePickerState::default();
+        if let Some(dt) = self.picker.confirm() {
+            let visible = self.visible_specs();
+            if visible.is_empty() {
+                return;
+            }
+            let spec_name = visible[self.spec_index].name.clone();
+            let team = self.teams[self.team_index].clone();
+            let slug = spec_name.strip_suffix(".md").unwrap_or(&spec_name).to_string();
+            match scheduler::schedule_run(&slug, &team, true, &self.cwd, dt) {
+                Ok(scheduled) => {
+                    self.run_info.insert(
+                        slug.clone(),
+                        SpecRunInfo::Scheduled {
+                            team: team.clone(),
+                            at: scheduled.scheduled_at,
+                            plist_path: scheduled.plist_path,
+                        },
+                    );
+                    self.status_message = Some(format!(
+                        "Scheduled: {} — {} @ {}",
+                        spec_name,
+                        team,
+                        dt.format("%a %b %-d %-I:%M%P")
+                    ));
+                    self.screen = Screen::Launcher;
+                    self.picker = SchedulePickerState::default();
+                }
+                Err(e) => {
+                    self.picker.error = Some(format!("Failed to schedule: {e}"));
+                }
+            }
         }
+    }
+
+    /// Confirm the cancel dialog: remove the scheduled run plist and clear run_info.
+    pub fn confirm_cancel_dialog(&mut self) {
+        let (slug, plist_path) = match &self.popup {
+            Some(PopupAction::CancelDialog { spec_slug, .. }) => {
+                let slug = spec_slug.clone();
+                let path = match self.run_info.get(&slug) {
+                    Some(SpecRunInfo::Scheduled { plist_path, .. }) => plist_path.clone(),
+                    _ => {
+                        self.popup = None;
+                        return;
+                    }
+                };
+                (slug, path)
+            }
+            _ => return,
+        };
+
+        // If plist doesn't exist, skip launchctl (handles tests and already-cleaned-up state)
+        if plist_path.exists() {
+            if let Err(e) = scheduler::cleanup_plist(&plist_path) {
+                self.picker.error = Some(format!("Failed to cancel: {e}"));
+                return;
+            }
+        }
+
+        self.run_info.remove(&slug);
+        self.popup = None;
     }
 
     /// Get the selected result, if confirmed.
