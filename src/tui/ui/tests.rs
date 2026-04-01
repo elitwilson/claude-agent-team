@@ -39,6 +39,7 @@ fn sample_app() -> App {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     )
 }
 
@@ -70,6 +71,7 @@ fn test_render_shows_scheduled_run_info_for_spec() {
         Prefs::default(),
         run_info,
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     let output = render_to_string(&mut app, 100, 20);
     // Scheduled format: "team @ Mon Jan 2 8:00pm"
@@ -95,6 +97,7 @@ fn test_render_shows_last_run_info_for_spec() {
         Prefs::default(),
         run_info,
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     let output = render_to_string(&mut app, 100, 20);
     // Last-run format: "team · Jan 2" (dim)
@@ -175,6 +178,7 @@ fn test_render_scheduled_takes_priority_over_last_run() {
         Prefs::default(),
         run_info,
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     let output = render_to_string(&mut app, 100, 20);
     // Scheduled info should appear

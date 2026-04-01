@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 
 use super::metrics::MetricsState;
+use crate::accounts::AccountEntry;
 use crate::config::{SpecEntry, SpecStatus};
 use crate::prefs::Prefs;
 use crate::scheduler;
@@ -34,6 +35,7 @@ pub enum SpecRunInfo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PopupAction {
     TeamDialog { selected_index: usize },
+    AccountDialog { selected_index: usize },
     ActionDialog { selected: ActionChoice },
     CancelDialog {
         spec_slug: String,
@@ -281,6 +283,7 @@ pub struct TuiResult {
     pub team: String,
     pub headless: bool,
     pub mode: RunMode,
+    pub account: Option<String>,
 }
 
 /// TUI application state.
@@ -289,9 +292,11 @@ pub struct App {
     pub specs: Vec<SpecEntry>,
     pub requirements: Vec<SpecEntry>,
     pub teams: Vec<String>,
+    pub accounts: Vec<AccountEntry>,
     pub spec_index: usize,
     pub requirements_index: usize,
     pub team_index: usize,
+    pub account_index: usize,
     pub options_index: usize,
     pub focused_panel: Panel,
     pub prefs: Prefs,
@@ -315,8 +320,14 @@ impl App {
         prefs: Prefs,
         run_info: HashMap<String, SpecRunInfo>,
         cwd: PathBuf,
+        accounts: Vec<AccountEntry>,
     ) -> Self {
         let team_index = teams.iter().position(|t| t == default_team).unwrap_or(0);
+        let account_index = prefs
+            .default_account
+            .as_deref()
+            .and_then(|label| accounts.iter().position(|a| a.label == label))
+            .unwrap_or(0);
         let (requirements, specs): (Vec<SpecEntry>, Vec<SpecEntry>) = all_entries
             .into_iter()
             .partition(|e| e.status == SpecStatus::Raw);
@@ -324,9 +335,11 @@ impl App {
             specs,
             requirements,
             teams,
+            accounts,
             spec_index: 0,
             requirements_index: 0,
             team_index,
+            account_index,
             options_index: 0,
             focused_panel: Panel::Spec,
             prefs,
@@ -525,13 +538,25 @@ impl App {
 
     /// Dismiss the active popup.
     /// Esc on TeamDialog → spec list (popup = None).
-    /// Esc on ActionDialog → restores TeamDialog.
+    /// Esc on AccountDialog → restores TeamDialog.
+    /// Esc on ActionDialog → restores TeamDialog (or AccountDialog if accounts.len() > 1).
     /// Esc on CancelDialog → spec list (popup = None).
     pub fn dismiss_popup(&mut self) {
         self.popup = match self.popup.take() {
-            Some(PopupAction::ActionDialog { .. }) => Some(PopupAction::TeamDialog {
+            Some(PopupAction::AccountDialog { .. }) => Some(PopupAction::TeamDialog {
                 selected_index: self.team_index,
             }),
+            Some(PopupAction::ActionDialog { .. }) => {
+                if self.accounts.len() > 1 {
+                    Some(PopupAction::AccountDialog {
+                        selected_index: self.account_index,
+                    })
+                } else {
+                    Some(PopupAction::TeamDialog {
+                        selected_index: self.team_index,
+                    })
+                }
+            }
             _ => None,
         };
     }
@@ -541,6 +566,11 @@ impl App {
         match &mut self.popup {
             Some(PopupAction::TeamDialog { selected_index }) => {
                 if *selected_index + 1 < self.teams.len() {
+                    *selected_index += 1;
+                }
+            }
+            Some(PopupAction::AccountDialog { selected_index }) => {
+                if *selected_index + 1 < self.accounts.len() {
                     *selected_index += 1;
                 }
             }
@@ -559,6 +589,9 @@ impl App {
             Some(PopupAction::TeamDialog { selected_index }) => {
                 *selected_index = selected_index.saturating_sub(1);
             }
+            Some(PopupAction::AccountDialog { selected_index }) => {
+                *selected_index = selected_index.saturating_sub(1);
+            }
             Some(PopupAction::ActionDialog { selected }) => {
                 if *selected == ActionChoice::ScheduleLater {
                     *selected = ActionChoice::ExecuteNow;
@@ -569,9 +602,10 @@ impl App {
     }
 
     /// Confirm the active popup selection.
-    /// TeamDialog → stores team_index and opens ActionDialog.
+    /// TeamDialog → if accounts.len() > 1, opens AccountDialog; otherwise opens ActionDialog.
+    /// AccountDialog → stores account_index, saves prefs.default_account, opens ActionDialog.
     /// ActionDialog → ExecuteNow sets confirmed; ScheduleLater switches to SchedulePicker.
-    /// CancelDialog → handled by confirm_cancel_dialog (Task 3).
+    /// CancelDialog → handled by confirm_cancel_dialog.
     pub fn confirm_popup(&mut self) {
         let action = match self.popup.take() {
             Some(a) => a,
@@ -580,6 +614,21 @@ impl App {
         match action {
             PopupAction::TeamDialog { selected_index } => {
                 self.team_index = selected_index;
+                if self.accounts.len() > 1 {
+                    self.popup = Some(PopupAction::AccountDialog {
+                        selected_index: self.account_index,
+                    });
+                } else {
+                    self.popup = Some(PopupAction::ActionDialog {
+                        selected: ActionChoice::ExecuteNow,
+                    });
+                }
+            }
+            PopupAction::AccountDialog { selected_index } => {
+                self.account_index = selected_index;
+                self.prefs.default_account =
+                    Some(self.accounts[selected_index].label.clone());
+                self.prefs.save();
                 self.popup = Some(PopupAction::ActionDialog {
                     selected: ActionChoice::ExecuteNow,
                 });
@@ -594,7 +643,6 @@ impl App {
             },
             PopupAction::CancelDialog { .. } => {
                 // Delegated to confirm_cancel_dialog — put it back and let caller route correctly
-                // (Task 3 will implement confirm_cancel_dialog)
             }
         }
     }
@@ -669,6 +717,7 @@ impl App {
         if !self.confirmed {
             return None;
         }
+        let account = self.accounts.get(self.account_index).map(|a| a.label.clone());
         match self.active_tab {
             SpecTab::Specs => {
                 let visible = self.visible_specs();
@@ -677,6 +726,7 @@ impl App {
                     team: self.teams[self.team_index].clone(),
                     headless: self.prefs.headless,
                     mode: RunMode::TeamRun,
+                    account,
                 })
             }
             SpecTab::Requirements => Some(TuiResult {
@@ -684,6 +734,7 @@ impl App {
                 team: self.teams[self.team_index].clone(),
                 headless: self.prefs.headless,
                 mode: RunMode::DraftRun,
+                account,
             }),
         }
     }

@@ -24,6 +24,7 @@ fn sample_app() -> App {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     )
 }
 
@@ -50,6 +51,7 @@ fn test_new_selects_default_team() {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     assert_eq!(app.team_index, 1);
 }
@@ -63,6 +65,7 @@ fn test_new_defaults_to_first_team_if_default_not_found() {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     assert_eq!(app.team_index, 0);
 }
@@ -149,6 +152,7 @@ fn test_toggle_show_complete_clamps_spec_index() {
         prefs,
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     app.spec_index = 1; // pointing at Complete spec
     app.toggle_show_complete(); // hides complete -> visible list shrinks to 1
@@ -169,6 +173,7 @@ fn test_toggle_show_blocked_clamps_spec_index() {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     app.spec_index = 2;
     app.toggle_show_blocked();
@@ -191,6 +196,7 @@ fn test_visible_specs_includes_all_by_default() {
         Prefs::default(), // show_complete=true, show_blocked=true
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     assert_eq!(app.visible_specs().len(), 3);
 }
@@ -209,6 +215,7 @@ fn test_visible_specs_hides_complete_when_show_complete_false() {
         prefs,
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     let visible = app.visible_specs();
     assert_eq!(visible.len(), 1);
@@ -229,6 +236,7 @@ fn test_visible_specs_hides_blocked_when_show_blocked_false() {
         prefs,
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     let visible = app.visible_specs();
     assert_eq!(visible.len(), 1);
@@ -397,6 +405,7 @@ fn test_blocked_spec_is_not_confirmable() {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     app.confirm();
     assert!(!app.confirmed);
@@ -416,6 +425,7 @@ fn test_complete_spec_is_not_confirmable() {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
     app.confirm();
     assert!(!app.confirmed);
@@ -533,6 +543,7 @@ fn sample_app_with_entries() -> App {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     )
 }
 
@@ -593,6 +604,7 @@ fn app_with_mixed_entries() -> App {
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     )
 }
 
@@ -725,6 +737,7 @@ fn test_integration_full_flow_spec_to_team_to_execute_produces_correct_result() 
         Prefs::default(),
         HashMap::new(),
         PathBuf::from("/tmp/test"),
+        vec![],
     );
 
     // Navigate spec list down to feature-b.md
@@ -775,6 +788,7 @@ fn sample_app_with_run_info(run_info: HashMap<String, SpecRunInfo>) -> App {
         Prefs::default(),
         run_info,
         PathBuf::from("/tmp/test-project"),
+        vec![],
     )
 }
 
@@ -800,6 +814,7 @@ fn test_app_new_stores_cwd() {
         Prefs::default(),
         HashMap::new(),
         cwd.clone(),
+        vec![],
     );
     assert_eq!(app.cwd, cwd);
 }
@@ -973,4 +988,229 @@ fn test_confirm_picker_on_success_returns_to_launcher_and_sets_status_message() 
     assert!(!app.confirmed);
     assert!(app.status_message.is_some());
     assert!(app.run_info.contains_key("feature-a"));
+}
+
+// --- Task 009: AccountDialog popup chain ---
+
+fn sample_app_with_accounts(accounts: Vec<AccountEntry>) -> App {
+    App::new(
+        vec![spec("feature-a.md"), spec("feature-b.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        accounts,
+    )
+}
+
+#[test]
+fn test_confirm_popup_on_team_dialog_with_no_accounts_opens_action_dialog() {
+    let mut app = sample_app_with_accounts(vec![]);
+    app.confirm(); // opens TeamDialog
+    app.confirm_popup(); // no accounts → skip to ActionDialog
+    assert!(matches!(app.popup, Some(PopupAction::ActionDialog { .. })));
+}
+
+#[test]
+fn test_confirm_popup_on_team_dialog_with_single_account_opens_action_dialog() {
+    let accounts = vec![AccountEntry { label: "personal".to_string() }];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // 1 account → skip to ActionDialog
+    assert!(matches!(app.popup, Some(PopupAction::ActionDialog { .. })));
+}
+
+#[test]
+fn test_confirm_popup_on_team_dialog_with_multiple_accounts_opens_account_dialog() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // 2 accounts → AccountDialog
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { .. })));
+}
+
+#[test]
+fn test_confirm_popup_on_account_dialog_opens_action_dialog() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // AccountDialog
+    app.confirm_popup(); // confirm account → ActionDialog
+    assert!(matches!(app.popup, Some(PopupAction::ActionDialog { .. })));
+}
+
+#[test]
+fn test_confirm_popup_on_account_dialog_stores_account_index() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // AccountDialog pre-selected at index 0
+    app.popup_move_down(); // move to "work" (index 1)
+    app.confirm_popup(); // confirm → account_index = 1
+    assert_eq!(app.account_index, 1);
+}
+
+#[test]
+fn test_confirm_popup_on_account_dialog_updates_prefs_default_account() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // AccountDialog
+    app.popup_move_down(); // select "work"
+    app.confirm_popup(); // confirm
+    assert_eq!(app.prefs.default_account, Some("work".to_string()));
+}
+
+#[test]
+fn test_dismiss_popup_on_account_dialog_restores_team_dialog() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm(); // TeamDialog
+    app.confirm_popup(); // AccountDialog
+    app.dismiss_popup(); // Esc → back to TeamDialog
+    assert!(matches!(app.popup, Some(PopupAction::TeamDialog { .. })));
+}
+
+#[test]
+fn test_popup_move_down_on_account_dialog_increments_index() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 0 });
+    app.popup_move_down();
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { selected_index: 1 })));
+}
+
+#[test]
+fn test_popup_move_down_on_account_dialog_clamps_at_last() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 1 });
+    app.popup_move_down();
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { selected_index: 1 })));
+}
+
+#[test]
+fn test_popup_move_up_on_account_dialog_decrements_index() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 1 });
+    app.popup_move_up();
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { selected_index: 0 })));
+}
+
+#[test]
+fn test_popup_move_up_on_account_dialog_clamps_at_zero() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.popup = Some(PopupAction::AccountDialog { selected_index: 0 });
+    app.popup_move_up();
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { selected_index: 0 })));
+}
+
+#[test]
+fn test_app_new_preselects_default_account_from_prefs() {
+    let mut prefs = Prefs::default();
+    prefs.default_account = Some("work".to_string());
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let app = App::new(
+        vec![spec("spec.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        prefs,
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        accounts,
+    );
+    assert_eq!(app.account_index, 1);
+}
+
+#[test]
+fn test_app_new_account_index_defaults_to_zero_when_default_not_found() {
+    let mut prefs = Prefs::default();
+    prefs.default_account = Some("nonexistent".to_string());
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let app = App::new(
+        vec![spec("spec.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        prefs,
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        accounts,
+    );
+    assert_eq!(app.account_index, 0);
+}
+
+#[test]
+fn test_tui_result_account_is_none_when_no_accounts() {
+    let mut app = sample_app_with_accounts(vec![]);
+    app.confirm();
+    app.confirm_popup(); // ActionDialog
+    app.confirm_popup(); // ExecuteNow
+    let result = app.result().unwrap();
+    assert!(result.account.is_none());
+}
+
+#[test]
+fn test_tui_result_account_is_label_when_account_selected() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm();
+    app.confirm_popup(); // AccountDialog (index 0 = "personal")
+    app.popup_move_down(); // select "work"
+    app.confirm_popup(); // confirm account
+    app.confirm_popup(); // ExecuteNow
+    let result = app.result().unwrap();
+    assert_eq!(result.account, Some("work".to_string()));
+}
+
+#[test]
+fn test_dismiss_action_dialog_with_multiple_accounts_restores_account_dialog() {
+    let accounts = vec![
+        AccountEntry { label: "personal".to_string() },
+        AccountEntry { label: "work".to_string() },
+    ];
+    let mut app = sample_app_with_accounts(accounts);
+    app.confirm(); // TeamDialog
+    app.confirm_popup(); // AccountDialog
+    app.confirm_popup(); // ActionDialog
+    app.dismiss_popup(); // Esc on ActionDialog → AccountDialog (not TeamDialog)
+    assert!(matches!(app.popup, Some(PopupAction::AccountDialog { .. })));
 }

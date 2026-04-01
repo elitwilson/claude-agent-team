@@ -41,7 +41,7 @@ pub fn run_tui(
 ) -> Result<Option<TuiResult>> {
     let prefs = Prefs::load();
     let run_info = load_run_info(cwd);
-    let mut app = App::new(specs, teams, default_team, prefs, run_info, cwd.to_path_buf());
+    let mut app = App::new(specs, teams, default_team, prefs, run_info, cwd.to_path_buf(), vec![]);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
