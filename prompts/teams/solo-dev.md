@@ -30,7 +30,7 @@ feat(<area>): <short description>
 
 - Do not modify files outside the scope of ${SPEC_FILE}
 - Do not push to remote
-- Log decisions and blockers to docs/specs/${FEATURE_SLUG}/decisions.md — never halt
+- Log decisions and blockers to docs/runs/${FEATURE_SLUG}/decisions.md — never halt
 
 ## Termination
 

@@ -25,7 +25,7 @@ Wait for all investigators to return findings before proceeding.
 
 ## Write the report
 
-Synthesize findings into `docs/specs/${FEATURE_SLUG}/investigation-report.md`. The report must:
+Synthesize findings into `docs/runs/${FEATURE_SLUG}/investigation-report.md`. The report must:
 
 - Directly answer the central question from the brief
 - Include relevant file paths and line numbers from investigator findings

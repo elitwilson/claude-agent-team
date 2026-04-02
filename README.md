@@ -52,7 +52,13 @@ Run from within your target project directory:
 claude-bros
 ```
 
+![TUI launcher with team picker open](docs/screenshots/Screenshot%202026-04-02%20at%204.18.32%20PM.png)
+
 This opens the TUI where you select a spec and a team. On confirm, `claude-bros` will:
+
+After selecting a spec and team, an action prompt asks whether to **Execute Now** or **Schedule Later**. Execute Now runs immediately; Schedule Later opens a date/time picker (see [Scheduled Runs](#scheduled-runs) below).
+
+Pre-flight through post-run summary:
 
 1. Run pre-flight checks (clean working tree, checkout base branch, pull, create feature branch)
 2. Spawn the agent team session interactively
@@ -66,6 +72,25 @@ This opens the TUI where you select a spec and a team. On confirm, `claude-bros`
 Toggle in the Options panel. Redirects all Claude output to a log file instead of the terminal. Useful for overnight runs.
 
 Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target project.
+
+---
+
+## Scheduled Runs
+
+After selecting a spec and team, choosing **Schedule Later** opens a date/time picker. The run is registered as a one-shot macOS launchd job and fires unattended at the chosen time.
+
+![Schedule Run date/time picker](docs/screenshots/Screenshot%202026-04-02%20at%204.19.15%20PM.png)
+
+Scheduled runs always run headless. Logs are written to:
+
+```
+logs/agent-runs/<slug>-launchd.log
+logs/agent-runs/<slug>-launchd.err
+```
+
+To cancel a pending run, select the spec in the TUI (it shows the scheduled time and team) and confirm the cancel prompt.
+
+![Cancel Scheduled Run dialog](docs/screenshots/Screenshot%202026-04-02%20at%204.20.02%20PM.png)
 
 ---
 
@@ -208,9 +233,9 @@ This is useful when you want to brain-dump requirements without worrying about s
 
 | File | Purpose |
 |------|---------|
-| `docs/specs/<slug>/decisions.md` | Ambiguities and assumptions logged during the run |
-| `docs/specs/<slug>/review-notes.md` | Reviewer gate outcomes per task (feature-dev, solo-with-subagent-review) |
-| `docs/specs/<slug>/investigation-report.md` | Synthesized findings report (investigation team) |
+| `docs/runs/<slug>/decisions.md` | Ambiguities and assumptions logged during the run |
+| `docs/runs/<slug>/review-notes.md` | Reviewer gate outcomes per task (feature-dev, solo-with-subagent-review) |
+| `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (investigation team) |
 | `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
 | `~/.claude/claude-agent-team-metrics.db` | Token usage across all runs |
 
@@ -219,8 +244,8 @@ This is useful when you want to brain-dump requirements without worrying about s
 ## Review Checklist
 
 ```
-[ ] Read docs/specs/<slug>/decisions.md if present
-[ ] Read docs/specs/<slug>/review-notes.md if present
+[ ] Read docs/runs/<slug>/decisions.md if present
+[ ] Read docs/runs/<slug>/review-notes.md if present
 [ ] git diff main — review the diff
 [ ] Run the test suite
 [ ] Manually test against success criteria in the spec

@@ -25,7 +25,7 @@ After writing failing tests for a task, spawn a sub-agent. Include in the prompt
 - The full contents of ${WORKFLOW_DIR}/docs/roles/solo-with-subagent-review/reviewer.md
 - The full text of ${SPEC_FILE}
 - The full text of the failing tests you just wrote
-- The path to write its verdict: docs/specs/${FEATURE_SLUG}/review-notes.md
+- The path to write its verdict: docs/runs/${FEATURE_SLUG}/review-notes.md
 - That it must append (not overwrite) if the file already exists
 
 Wait for the sub-agent to respond before proceeding to implementation.
@@ -46,7 +46,7 @@ feat(<area>): <short description>
 - Do not implement before the reviewer sub-agent verdict is received
 - Do not modify files outside the scope of ${SPEC_FILE}
 - Do not push to remote
-- Log decisions and blockers to docs/specs/${FEATURE_SLUG}/decisions.md — never halt
+- Log decisions and blockers to docs/runs/${FEATURE_SLUG}/decisions.md — never halt
 
 ## Termination
 
