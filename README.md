@@ -52,7 +52,7 @@ Run from within your target project directory:
 claude-bros
 ```
 
-![TUI launcher with team picker open](docs/screenshots/Screenshot%202026-04-02%20at%204.18.32%20PM.png)
+![TUI launcher with team picker open](docs/screenshots/tui-launcher.png)
 
 This opens the TUI where you select a spec and a team. On confirm, `claude-bros` will:
 
@@ -79,7 +79,7 @@ Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target 
 
 After selecting a spec and team, choosing **Schedule Later** opens a date/time picker. The run is registered as a one-shot macOS launchd job and fires unattended at the chosen time.
 
-![Schedule Run date/time picker](docs/screenshots/Screenshot%202026-04-02%20at%204.19.15%20PM.png)
+![Schedule Run date/time picker](docs/screenshots/schedule-picker.png)
 
 Scheduled runs always run headless. Logs are written to:
 
@@ -90,7 +90,7 @@ logs/agent-runs/<slug>-launchd.err
 
 To cancel a pending run, select the spec in the TUI (it shows the scheduled time and team) and confirm the cancel prompt.
 
-![Cancel Scheduled Run dialog](docs/screenshots/Screenshot%202026-04-02%20at%204.20.02%20PM.png)
+![Cancel Scheduled Run dialog](docs/screenshots/cancel-scheduled-run.png)
 
 ---
 
