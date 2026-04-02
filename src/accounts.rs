@@ -15,7 +15,7 @@ struct AccountsFile {
     accounts: Vec<AccountEntry>,
 }
 
-/// Load accounts from `~/.claude/claude-agent-team-accounts.toml`.
+/// Load accounts from `~/.claude/claude-launch-accounts.toml`.
 /// Returns an empty vec if the file does not exist or has no entries.
 pub fn load_accounts() -> Vec<AccountEntry> {
     default_accounts_path()
@@ -32,7 +32,7 @@ pub fn load_accounts_from_path(path: &Path) -> Result<Vec<AccountEntry>> {
 }
 
 /// Load an OAuth token from the macOS Keychain for the given account label.
-/// Service: `com.claude-agent-team`, account: `label`.
+/// Service: `com.claude-launch`, account: `label`.
 /// Returns `None` on any error (missing entry, Keychain failure, etc.).
 pub fn load_token_for_account(label: &str) -> Option<String> {
     let output = Command::new("security")
@@ -40,7 +40,7 @@ pub fn load_token_for_account(label: &str) -> Option<String> {
             "find-generic-password",
             "-w",
             "-s",
-            "com.claude-agent-team",
+            "com.claude-launch",
             "-a",
             label,
         ])
@@ -59,7 +59,7 @@ fn default_accounts_path() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| {
         PathBuf::from(h)
             .join(".claude")
-            .join("claude-agent-team-accounts.toml")
+            .join("claude-launch-accounts.toml")
     })
 }
 

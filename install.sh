@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build and install the claude-agent-team binary globally.
+# Build and install the claude-launch binary globally.
 # Safe to re-run — just rebuilds and overwrites.
 
 set -e
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="claude-bros"
+BINARY_NAME="claude-launch"
 
 echo "Building $BINARY_NAME..."
 cargo build --release --manifest-path "$REPO_DIR/Cargo.toml"

@@ -3,7 +3,7 @@ use std::fs;
 use tempfile::TempDir;
 
 fn prefs_path_in(dir: &TempDir) -> PathBuf {
-    dir.path().join("claude-agent-team-prefs.toml")
+    dir.path().join("claude-launch-prefs.toml")
 }
 
 // --- Defaults ---

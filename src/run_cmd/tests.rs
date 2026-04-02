@@ -13,14 +13,14 @@ fn test_parse_all_flags() {
         "--spec", "005-scheduled-runs.md",
         "--team", "feature-dev",
         "--headless",
-        "--cleanup-plist", "/tmp/com.claude-agent-team.test.plist",
+        "--cleanup-plist", "/tmp/com.claude-launch.test.plist",
     ]);
     let result = parse_run_args(&input).unwrap();
     assert_eq!(result, RunArgs {
         spec: "005-scheduled-runs.md".to_string(),
         team: "feature-dev".to_string(),
         headless: true,
-        cleanup_plist: Some(PathBuf::from("/tmp/com.claude-agent-team.test.plist")),
+        cleanup_plist: Some(PathBuf::from("/tmp/com.claude-launch.test.plist")),
         account: None,
     });
 }

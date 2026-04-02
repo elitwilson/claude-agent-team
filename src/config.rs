@@ -53,7 +53,7 @@ fn extract_frontmatter(content: &str) -> Option<&str> {
     Some(&rest[..end])
 }
 
-/// Project-level configuration loaded from `.claude-agent-team.toml`.
+/// Project-level configuration loaded from `.claude-launch.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     #[serde(default = "default_specs_dir")]
@@ -87,15 +87,15 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load config from a `.claude-agent-team.toml` file in the given directory.
+    /// Load config from a `.claude-launch.toml` file in the given directory.
     /// Returns defaults if the file does not exist.
     pub fn load(dir: &Path) -> Result<Self> {
-        let path = dir.join(".claude-agent-team.toml");
+        let path = dir.join(".claude-launch.toml");
         if !path.exists() {
             return Ok(Self::default());
         }
         let contents =
-            std::fs::read_to_string(&path).context("Failed to read .claude-agent-team.toml")?;
+            std::fs::read_to_string(&path).context("Failed to read .claude-launch.toml")?;
         let config: Config = toml::from_str(&contents).context("Failed to parse config TOML")?;
         Ok(config)
     }

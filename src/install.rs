@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-/// Returns true if claude-bros has already been installed (hooks registered + rules symlinked).
+/// Returns true if claude-launch has already been installed (hooks registered + rules symlinked).
 pub fn is_installed() -> bool {
     let Ok(home) = std::env::var("HOME") else {
         return false;

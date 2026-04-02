@@ -146,7 +146,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "claude-bros"
+name = "claude-launch"
 version = "0.1.0"
 dependencies = [
  "anyhow",

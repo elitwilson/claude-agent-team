@@ -34,7 +34,7 @@ impl Prefs {
         std::env::var_os("HOME").map(|h| {
             PathBuf::from(h)
                 .join(".claude")
-                .join("claude-agent-team-prefs.toml")
+                .join("claude-launch-prefs.toml")
         })
     }
 

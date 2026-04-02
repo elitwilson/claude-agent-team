@@ -41,7 +41,7 @@ fn run() -> Result<()> {
 
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
 
-    // Load config (falls back to defaults if no .claude-agent-team.toml)
+    // Load config (falls back to defaults if no .claude-launch.toml)
     let config = config::Config::load(&cwd)?;
 
     // Resolve workflow dir early — fail fast if it can't be found
@@ -182,16 +182,16 @@ fn run() -> Result<()> {
 }
 
 fn run_scheduled(args: &[String]) -> Result<()> {
-    eprintln!("[claude-bros] run_scheduled: starting");
+    eprintln!("[claude-launch] run_scheduled: starting");
     let run_args = run_cmd::parse_run_args(args)?;
-    eprintln!("[claude-bros] run_scheduled: spec={} team={} headless={}", run_args.spec, run_args.team, run_args.headless);
+    eprintln!("[claude-launch] run_scheduled: spec={} team={} headless={}", run_args.spec, run_args.team, run_args.headless);
 
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
-    eprintln!("[claude-bros] run_scheduled: cwd={}", cwd.display());
+    eprintln!("[claude-launch] run_scheduled: cwd={}", cwd.display());
     let config = config::Config::load(&cwd)?;
-    eprintln!("[claude-bros] run_scheduled: config loaded");
+    eprintln!("[claude-launch] run_scheduled: config loaded");
     let workflow_dir = prompt::resolve_workflow_dir()?;
-    eprintln!("[claude-bros] run_scheduled: workflow_dir={workflow_dir}");
+    eprintln!("[claude-launch] run_scheduled: workflow_dir={workflow_dir}");
 
     let feature_slug = run_args
         .spec
@@ -201,13 +201,13 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     let spec_file_path = format!("{}/{}", config.specs_dir, run_args.spec);
 
     // Preflight: clean check, checkout base, pull, create branch
-    eprintln!("[claude-bros] run_scheduled: running preflight");
+    eprintln!("[claude-launch] run_scheduled: running preflight");
     let _branch =
         preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
-    eprintln!("[claude-bros] run_scheduled: preflight done");
+    eprintln!("[claude-launch] run_scheduled: preflight done");
 
     // Render prompt template
-    eprintln!("[claude-bros] run_scheduled: rendering prompt");
+    eprintln!("[claude-launch] run_scheduled: rendering prompt");
     let template_path = Path::new(&workflow_dir)
         .join("prompts")
         .join("teams")
@@ -279,7 +279,7 @@ fn collect_metrics(
         let home = std::env::var("HOME").context("HOME environment variable not set")?;
         let db_path = Path::new(&home)
             .join(".claude")
-            .join("claude-agent-team-metrics.db");
+            .join("claude-launch-metrics.db");
         let conn =
             rusqlite::Connection::open(&db_path).context("Failed to open metrics database")?;
         metrics::db::init_db(&conn)?;

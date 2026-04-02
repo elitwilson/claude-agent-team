@@ -46,19 +46,19 @@ pub fn render_drafter_prompt(
     Ok(rendered)
 }
 
-/// Resolve the workflow directory. Checks `CLAUDE_AGENT_TEAM_DIR` env var first,
-/// then extracts embedded files to `~/.claude-agent-team/` and returns that path.
+/// Resolve the workflow directory. Checks `CLAUDE_LAUNCH_DIR` env var first,
+/// then extracts embedded files to `~/.claude-launch/` and returns that path.
 pub fn resolve_workflow_dir() -> Result<String> {
     // Check env var first (allows override for development)
-    if let Ok(dir) = std::env::var("CLAUDE_AGENT_TEAM_DIR") {
+    if let Ok(dir) = std::env::var("CLAUDE_LAUNCH_DIR") {
         if Path::new(&dir).join("prompts").exists() {
             return Ok(dir);
         }
     }
 
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
-    let workflow_dir = Path::new(&home).join(".claude-agent-team");
-    std::fs::create_dir_all(&workflow_dir).context("Failed to create ~/.claude-agent-team")?;
+    let workflow_dir = Path::new(&home).join(".claude-launch");
+    std::fs::create_dir_all(&workflow_dir).context("Failed to create ~/.claude-launch")?;
 
     extract_dir(&WORKFLOW_FILES, &workflow_dir.join("prompts"))?;
     extract_dir(&DOCS_FILES, &workflow_dir.join("docs"))?;

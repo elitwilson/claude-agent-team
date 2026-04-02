@@ -1,6 +1,6 @@
-# claude-bros
+# claude-launch
 
-A launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec in the TUI, assign a team, and `claude-bros` handles the rest: pre-flight git setup, agent session, metrics collection.
+A launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec in the TUI, assign a team, and `claude-launch` handles the rest: pre-flight git setup, agent session, metrics collection.
 
 ```
 [Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
@@ -27,7 +27,7 @@ cd claude-agent-team-workflow
 ./install.sh
 ```
 
-This builds the binary and copies it to `/usr/local/bin/claude-bros`.
+This builds the binary and copies it to `/usr/local/bin/claude-launch`.
 
 **Prerequisites:** Claude Code CLI (`claude --version`) and a Rust toolchain (`cargo --version`).
 
@@ -35,7 +35,7 @@ This builds the binary and copies it to `/usr/local/bin/claude-bros`.
 
 ## First-time setup
 
-The first time you run `claude-bros`, it automatically:
+The first time you run `claude-launch`, it automatically:
 
 - Symlinks workflow rules into `~/.claude/rules/agent-workflow` so Claude Code picks them up globally
 - Registers agent coordination hooks in `~/.claude/settings.json` (your existing file is backed up to `settings.json.bak` first)
@@ -49,12 +49,12 @@ No action needed — this happens in the background before the TUI opens.
 Run from within your target project directory:
 
 ```bash
-claude-bros
+claude-launch
 ```
 
 ![TUI launcher with team picker open](docs/screenshots/tui-launcher.png)
 
-This opens the TUI where you select a spec and a team. On confirm, `claude-bros` will:
+This opens the TUI where you select a spec and a team. On confirm, `claude-launch` will:
 
 After selecting a spec and team, an action prompt asks whether to **Execute Now** or **Schedule Later**. Execute Now runs immediately; Schedule Later opens a date/time picker (see [Scheduled Runs](#scheduled-runs) below).
 
@@ -62,10 +62,10 @@ Pre-flight through post-run summary:
 
 1. Run pre-flight checks (clean working tree, checkout base branch, pull, create feature branch)
 2. Spawn the agent team session interactively
-3. Collect token metrics and write them to `~/.claude/claude-agent-team-metrics.db`
+3. Collect token metrics and write them to `~/.claude/claude-launch-metrics.db`
 4. Print a post-run summary
 
-> **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-bros` from collecting metrics after the run.
+> **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-launch` from collecting metrics after the run.
 
 ### Headless mode
 
@@ -96,7 +96,7 @@ To cancel a pending run, select the spec in the TUI (it shows the scheduled time
 
 ## Authentication
 
-`claude-bros` loads your Claude OAuth token from the macOS Keychain at run time and passes it to the agent session.
+`claude-launch` loads your Claude OAuth token from the macOS Keychain at run time and passes it to the agent session.
 
 ### Single account
 
@@ -106,7 +106,7 @@ Store one token under the default service name:
 security add-generic-password -s claude-token-1 -a claude -w <your-token>
 ```
 
-No further configuration needed — `claude-bros` will pick it up automatically.
+No further configuration needed — `claude-launch` will pick it up automatically.
 
 ### Multiple accounts
 
@@ -115,7 +115,7 @@ If you use more than one Claude account, you can store a token per account and s
 **Step 1 — Create the accounts config file:**
 
 ```
-~/.claude/claude-agent-team-accounts.toml
+~/.claude/claude-launch-accounts.toml
 ```
 
 List each account by label:
@@ -133,14 +133,14 @@ Labels are arbitrary strings. They are used as the Keychain account name and sho
 **Step 2 — Add each token to Keychain:**
 
 ```bash
-security add-generic-password -s com.claude-agent-team -a personal -w <personal-token>
-security add-generic-password -s com.claude-agent-team -a work -w <work-token>
+security add-generic-password -s com.claude-launch -a personal -w <personal-token>
+security add-generic-password -s com.claude-launch -a work -w <work-token>
 ```
 
 To update a token later:
 
 ```bash
-security add-generic-password -U -s com.claude-agent-team -a work -w <new-token>
+security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 ```
 
 **How it works in the TUI:**
@@ -153,7 +153,7 @@ security add-generic-password -U -s com.claude-agent-team -a work -w <new-token>
 
 ## Configuration
 
-`claude-bros` works with no config file — all defaults apply. To override, add a `.claude-agent-team.toml` to your target project root:
+`claude-launch` works with no config file — all defaults apply. To override, add a `.claude-launch.toml` to your target project root:
 
 ```toml
 specs_dir = "docs/specs"       # default
@@ -237,7 +237,7 @@ This is useful when you want to brain-dump requirements without worrying about s
 | `docs/runs/<slug>/review-notes.md` | Reviewer gate outcomes per task (feature-dev, solo-with-subagent-review) |
 | `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (investigation team) |
 | `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
-| `~/.claude/claude-agent-team-metrics.db` | Token usage across all runs |
+| `~/.claude/claude-launch-metrics.db` | Token usage across all runs |
 
 ---
 

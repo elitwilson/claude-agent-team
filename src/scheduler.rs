@@ -395,7 +395,7 @@ pub fn cleanup_plist(path: &Path) -> Result<()> {
 }
 
 /// The plist label prefix used by this tool.
-pub const PLIST_PREFIX: &str = "com.claude-agent-team";
+pub const PLIST_PREFIX: &str = "com.claude-launch";
 
 #[cfg(test)]
 mod tests;

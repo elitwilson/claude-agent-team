@@ -151,7 +151,7 @@ fn load_metrics(app: &mut App) {
     let db_path = env::var_os("HOME").map(|h| {
         PathBuf::from(h)
             .join(".claude")
-            .join("claude-agent-team-metrics.db")
+            .join("claude-launch-metrics.db")
     });
 
     let state = match db_path {
@@ -183,7 +183,7 @@ fn load_run_info(cwd: &Path) -> HashMap<String, SpecRunInfo> {
     let db_path = env::var_os("HOME").map(|h| {
         PathBuf::from(h)
             .join(".claude")
-            .join("claude-agent-team-metrics.db")
+            .join("claude-launch-metrics.db")
     });
     if let Some(path) = db_path.filter(|p| p.exists()) {
         if let Ok(conn) = rusqlite::Connection::open(&path) {

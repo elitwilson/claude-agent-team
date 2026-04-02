@@ -25,7 +25,7 @@ specs_dir = "custom/specs"
 default_team = "my-team"
 base_branch = "develop"
 "#;
-    fs::write(dir.path().join(".claude-agent-team.toml"), toml_content).unwrap();
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "custom/specs");
     assert_eq!(config.default_team, "my-team");
@@ -38,7 +38,7 @@ fn test_load_uses_defaults_for_missing_fields() {
     let toml_content = r#"
 specs_dir = "other/specs"
 "#;
-    fs::write(dir.path().join(".claude-agent-team.toml"), toml_content).unwrap();
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "other/specs");
     assert_eq!(config.default_team, "feature-dev");
@@ -53,7 +53,7 @@ specs_dir = "docs/specs"
 unknown_key = "should be ignored"
 another_unknown = 42
 "#;
-    fs::write(dir.path().join(".claude-agent-team.toml"), toml_content).unwrap();
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "docs/specs");
 }

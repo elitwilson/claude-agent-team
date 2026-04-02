@@ -10,7 +10,7 @@ fn test_plist_path_uses_launch_agents_dir() {
     let path = plist_path_for_spec("my-feature").unwrap();
     let home = std::env::var("HOME").unwrap();
     let expected = PathBuf::from(format!(
-        "{}/Library/LaunchAgents/com.claude-agent-team.my-feature.plist",
+        "{}/Library/LaunchAgents/com.claude-launch.my-feature.plist",
         home
     ));
     assert_eq!(path, expected);
@@ -20,7 +20,7 @@ fn test_plist_path_uses_launch_agents_dir() {
 fn test_plist_path_slug_with_dots() {
     let path = plist_path_for_spec("005-scheduled-runs.md").unwrap();
     let home = std::env::var("HOME").unwrap();
-    assert!(path.to_str().unwrap().contains("com.claude-agent-team.005-scheduled-runs.md.plist"));
+    assert!(path.to_str().unwrap().contains("com.claude-launch.005-scheduled-runs.md.plist"));
     assert!(path.starts_with(format!("{}/Library/LaunchAgents", home)));
 }
 
@@ -56,11 +56,11 @@ fn test_plist_contains_label() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
-    assert!(xml.contains("com.claude-agent-team.my-feature"));
+    assert!(xml.contains("com.claude-launch.my-feature"));
 }
 
 #[test]
@@ -73,8 +73,8 @@ fn test_plist_wraps_in_caffeinate() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     // caffeinate -i must be the first program argument
@@ -92,8 +92,8 @@ fn test_plist_includes_run_args() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(xml.contains("run"));
@@ -114,8 +114,8 @@ fn test_plist_excludes_headless_when_false() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(!xml.contains("--headless"));
@@ -124,7 +124,7 @@ fn test_plist_excludes_headless_when_false() {
 #[test]
 fn test_plist_includes_cleanup_plist_flag() {
     let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
-    let plist_path = Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist");
+    let plist_path = Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist");
     let xml = generate_plist_xml(
         "my-feature",
         "dev-team",
@@ -132,7 +132,7 @@ fn test_plist_includes_cleanup_plist_flag() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
+        Path::new("/usr/local/bin/claude-launch"),
         plist_path,
     )
     .unwrap();
@@ -150,8 +150,8 @@ fn test_plist_includes_working_directory() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(xml.contains("WorkingDirectory"));
@@ -168,8 +168,8 @@ fn test_plist_includes_calendar_interval() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(xml.contains("StartCalendarInterval"));
@@ -190,11 +190,11 @@ fn test_plist_includes_binary_path() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
-    assert!(xml.contains("/usr/local/bin/claude-bros"));
+    assert!(xml.contains("/usr/local/bin/claude-launch"));
 }
 
 #[test]
@@ -207,8 +207,8 @@ fn test_plist_is_valid_xml() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(xml.contains("<?xml version="));
@@ -224,12 +224,12 @@ const FIXTURE_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.claude-agent-team.my-feature</string>
+    <string>com.claude-launch.my-feature</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/caffeinate</string>
         <string>-i</string>
-        <string>/usr/local/bin/claude-bros</string>
+        <string>/usr/local/bin/claude-launch</string>
         <string>run</string>
         <string>--spec</string>
         <string>my-feature</string>
@@ -237,7 +237,7 @@ const FIXTURE_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
         <string>dev-team</string>
         <string>--headless</string>
         <string>--cleanup-plist</string>
-        <string>/tmp/com.claude-agent-team.my-feature.plist</string>
+        <string>/tmp/com.claude-launch.my-feature.plist</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/test/project</string>
@@ -259,7 +259,7 @@ const FIXTURE_PLIST: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 #[test]
 fn test_parse_plist_extracts_spec() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -270,7 +270,7 @@ fn test_parse_plist_extracts_spec() {
 #[test]
 fn test_parse_plist_extracts_team() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -281,7 +281,7 @@ fn test_parse_plist_extracts_team() {
 #[test]
 fn test_parse_plist_extracts_headless() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -292,7 +292,7 @@ fn test_parse_plist_extracts_headless() {
 #[test]
 fn test_parse_plist_extracts_scheduled_at() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -306,7 +306,7 @@ fn test_parse_plist_extracts_scheduled_at() {
 #[test]
 fn test_parse_plist_stores_plist_path() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -326,7 +326,7 @@ fn test_list_pending_in_finds_matching_plists() {
     let dir = tempfile::tempdir().unwrap();
 
     // Write a matching plist
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -340,7 +340,7 @@ fn test_list_pending_in_ignores_non_matching_files() {
     let dir = tempfile::tempdir().unwrap();
 
     // Write a matching plist
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -364,8 +364,8 @@ fn test_plist_includes_account_flag_when_provided() {
         Some("work"),
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(xml.contains("--account"));
@@ -382,8 +382,8 @@ fn test_plist_excludes_account_flag_when_none() {
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
-        Path::new("/usr/local/bin/claude-bros"),
-        Path::new("/Users/test/Library/LaunchAgents/com.claude-agent-team.my-feature.plist"),
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
     )
     .unwrap();
     assert!(!xml.contains("--account"));
@@ -396,12 +396,12 @@ const FIXTURE_PLIST_WITH_ACCOUNT: &str = r#"<?xml version="1.0" encoding="UTF-8"
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.claude-agent-team.my-feature</string>
+    <string>com.claude-launch.my-feature</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/caffeinate</string>
         <string>-i</string>
-        <string>/usr/local/bin/claude-bros</string>
+        <string>/usr/local/bin/claude-launch</string>
         <string>run</string>
         <string>--spec</string>
         <string>my-feature</string>
@@ -410,7 +410,7 @@ const FIXTURE_PLIST_WITH_ACCOUNT: &str = r#"<?xml version="1.0" encoding="UTF-8"
         <string>--account</string>
         <string>work</string>
         <string>--cleanup-plist</string>
-        <string>/tmp/com.claude-agent-team.my-feature.plist</string>
+        <string>/tmp/com.claude-launch.my-feature.plist</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/test/project</string>
@@ -432,7 +432,7 @@ const FIXTURE_PLIST_WITH_ACCOUNT: &str = r#"<?xml version="1.0" encoding="UTF-8"
 #[test]
 fn test_parse_plist_extracts_account_when_present() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST_WITH_ACCOUNT.as_bytes()).unwrap();
 
@@ -444,7 +444,7 @@ fn test_parse_plist_extracts_account_when_present() {
 fn test_parse_plist_account_is_none_for_legacy_plist_without_account() {
     // FIXTURE_PLIST has no --account arg — backward compat: account = None
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.my-feature.plist");
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
     let mut f = std::fs::File::create(&plist_file).unwrap();
     f.write_all(FIXTURE_PLIST.as_bytes()).unwrap();
 
@@ -457,7 +457,7 @@ fn test_parse_plist_account_is_none_for_legacy_plist_without_account() {
 #[test]
 fn test_cleanup_plist_removes_file() {
     let dir = tempfile::tempdir().unwrap();
-    let plist_file = dir.path().join("com.claude-agent-team.test.plist");
+    let plist_file = dir.path().join("com.claude-launch.test.plist");
     std::fs::write(&plist_file, "dummy").unwrap();
     assert!(plist_file.exists());
 
