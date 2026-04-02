@@ -1,19 +1,44 @@
 # claude-launch
 
-A launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec in the TUI, assign a team, and `claude-launch` handles the rest: pre-flight git setup, agent session, metrics collection.
+A TUI launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec, assign a team, and `claude-launch` handles the rest: pre-flight git setup, agent session, metrics collection.
+
+The repo ships with the prompt engineering that makes the teams work — role definitions, coordination logic, and TDD workflow rules. You're not just getting a launcher; you're getting a tested set of agent workflows ready to run against your own specs.
 
 ```
 [Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
 ```
 
-Available teams:
+---
 
-| Team | Description |
-|------|-------------|
-| `feature-dev` | Lead + Coder + Reviewer. Full TDD loop with a structural review gate per task. |
-| `solo-with-subagent-review` | Single agent. TDD loop with a one-shot sub-agent reviewer before each implementation. |
-| `solo-dev` | Single agent. Pure TDD loop, no review gate. |
-| `investigation` | Coordinator + parallel investigators. Read-only codebase exploration, produces a written report. |
+## How It Works
+
+### Teams and prompts
+
+Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of role definitions (in `docs/roles/`). When you launch a run, `claude-launch` assembles and injects these prompts into the Claude session — the agents read their own role files at startup and coordinate from there.
+
+| Team | Agents | Workflow |
+|------|--------|---------|
+| `feature-dev` | Lead + Coder + Reviewer | Lead breaks the spec into tasks. Coder writes failing tests (RED), Reviewer gates on them before Coder implements (GREEN). Structured review enforced per task. |
+| `solo-with-subagent-review` | Solo Dev + ephemeral Reviewer | Solo Dev owns the TDD loop. Before each implementation, a one-shot sub-agent reviewer is spawned, reads the failing tests, and returns a pass/flag verdict. |
+| `solo-dev` | Solo Dev | Pure TDD loop — task breakdown, tests, implementation, commit. No review gate. |
+| `investigation` | Coordinator + parallel Investigators | Coordinator decomposes the brief into parallel sub-questions, investigators explore the codebase read-only, coordinator synthesizes a written report. |
+
+### Run lifecycle
+
+1. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
+2. **Agent session** — the selected team reads the spec and its role definitions, then runs its workflow autonomously
+3. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite
+4. **Summary** — branch name and metrics status printed to stdout
+
+### Runtime artifacts
+
+| File | Purpose |
+|------|---------|
+| `docs/runs/<slug>/decisions.md` | Ambiguities and assumptions logged during the run |
+| `docs/runs/<slug>/review-notes.md` | Reviewer gate outcomes per task (`feature-dev`, `solo-with-subagent-review`) |
+| `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (`investigation`) |
+| `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
+| `~/.claude/claude-launch-metrics.db` | Token usage across all runs |
 
 ---
 
@@ -54,16 +79,7 @@ claude-launch
 
 ![TUI launcher with team picker open](docs/screenshots/tui-launcher.png)
 
-This opens the TUI where you select a spec and a team. On confirm, `claude-launch` will:
-
-After selecting a spec and team, an action prompt asks whether to **Execute Now** or **Schedule Later**. Execute Now runs immediately; Schedule Later opens a date/time picker (see [Scheduled Runs](#scheduled-runs) below).
-
-Pre-flight through post-run summary:
-
-1. Run pre-flight checks (clean working tree, checkout base branch, pull, create feature branch)
-2. Spawn the agent team session interactively
-3. Collect token metrics and write them to `~/.claude/claude-launch-metrics.db`
-4. Print a post-run summary
+Select a spec and team. An action prompt asks whether to **Execute Now** or **Schedule Later**. Execute Now runs immediately; Schedule Later opens a date/time picker (see [Scheduled Runs](#scheduled-runs) below).
 
 > **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-launch` from collecting metrics after the run.
 
@@ -218,26 +234,6 @@ The **Raw Inputs** tab shows any Markdown files in your specs directory that hav
 Selecting a raw input file and pressing `Enter` hands it to the **Drafter** agent, which reads your notes and produces a properly structured spec in the specs directory. From there you can review, edit, and run it as normal.
 
 This is useful when you want to brain-dump requirements without worrying about spec format up front.
-
----
-
-## How It Works
-
-1. **TUI** — select a spec, then a team; specs with `status: complete` or `blocked` are hidden by default (toggle in Options)
-2. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
-3. **Agent team** — the selected team reads the spec and its role definitions, then runs its workflow autonomously
-4. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite (non-fatal if it fails)
-5. **Summary** — branch name and metrics status printed to stdout
-
-### Runtime artifacts
-
-| File | Purpose |
-|------|---------|
-| `docs/runs/<slug>/decisions.md` | Ambiguities and assumptions logged during the run |
-| `docs/runs/<slug>/review-notes.md` | Reviewer gate outcomes per task (feature-dev, solo-with-subagent-review) |
-| `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (investigation team) |
-| `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
-| `~/.claude/claude-launch-metrics.db` | Token usage across all runs |
 
 ---
 
