@@ -44,17 +44,19 @@ Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of 
 
 ## Installation
 
-Clone the repo and run the install script:
+Clone the repo and install with Cargo:
 
 ```bash
 git clone <repo-url>
 cd claude-agent-team-workflow
-./install.sh
+cargo install --path .
 ```
 
-This builds the binary and copies it to `/usr/local/bin/claude-launch`.
+This builds a release binary and installs it to `~/.cargo/bin/claude-launch`.
 
 **Prerequisites:** Claude Code CLI (`claude --version`) and a Rust toolchain (`cargo --version`).
+
+To reinstall or upgrade, re-run `cargo install --path .` from the repo root.
 
 ---
 
