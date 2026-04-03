@@ -210,6 +210,20 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     let base_branch = config::read_base_branch(&spec_path).context("Failed to read base_branch from spec")?;
     eprintln!("[claude-launch] run_scheduled: base_branch={base_branch}");
 
+    // Spec hash integrity check: if --spec-hash was provided, verify the file hasn't changed
+    if let Some(ref expected_hash) = run_args.spec_hash {
+        let actual_hash = scheduler::hash_spec_file(&spec_path)
+            .context("Failed to hash spec file for integrity check")?;
+        if actual_hash != *expected_hash {
+            eprintln!(
+                "Error: Spec '{}' has changed since it was scheduled (hash mismatch). \
+                 Re-schedule to run the updated spec.",
+                run_args.spec
+            );
+            std::process::exit(1);
+        }
+    }
+
     // Preflight: clean check, checkout base, pull, create branch
     eprintln!("[claude-launch] run_scheduled: running preflight");
     let _branch =

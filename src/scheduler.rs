@@ -14,6 +14,16 @@ pub struct ScheduledRun {
     pub scheduled_at: DateTime<Local>,
     pub plist_path: PathBuf,
     pub account: Option<String>,
+    pub spec_hash: Option<String>,
+}
+
+/// Compute a SHA-256 hash of a spec file's raw bytes, returning a lowercase hex string.
+pub fn hash_spec_file(path: &Path) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("Failed to read spec file for hashing: {}", path.display()))?;
+    let hash = Sha256::digest(&bytes);
+    Ok(format!("{hash:x}"))
 }
 
 /// Generate the plist XML content for a scheduled run.
@@ -25,6 +35,7 @@ pub fn generate_plist_xml(
     team: &str,
     headless: bool,
     account: Option<&str>,
+    spec_hash: Option<&str>,
     working_dir: &Path,
     scheduled_at: DateTime<Local>,
     binary_path: &Path,
@@ -51,6 +62,10 @@ pub fn generate_plist_xml(
     if let Some(label) = account {
         program_args.push("        <string>--account</string>".to_string());
         program_args.push(format!("        <string>{label}</string>"));
+    }
+    if let Some(hash) = spec_hash {
+        program_args.push("        <string>--spec-hash</string>".to_string());
+        program_args.push(format!("        <string>{hash}</string>"));
     }
     program_args.push("        <string>--cleanup-plist</string>".to_string());
     program_args.push(format!("        <string>{plist}</string>"));
@@ -155,7 +170,12 @@ pub fn schedule_run(
 
     let binary_path = std::env::current_exe().context("Failed to resolve binary path")?;
 
-    let xml = generate_plist_xml(spec, team, headless, None, working_dir, scheduled_at, &binary_path, &plist_path)?;
+    // Compute spec hash for scheduled-run integrity check
+    let spec_hash = hash_spec_file(&working_dir.join("docs/specs").join(format!("{spec}.md")))
+        .or_else(|_| hash_spec_file(&working_dir.join("docs/specs").join(spec)))
+        .ok();
+
+    let xml = generate_plist_xml(spec, team, headless, None, spec_hash.as_deref(), working_dir, scheduled_at, &binary_path, &plist_path)?;
 
     std::fs::write(&plist_path, &xml)
         .with_context(|| format!("Failed to write plist to {}", plist_path.display()))?;
@@ -177,6 +197,7 @@ pub fn schedule_run(
         scheduled_at,
         plist_path,
         account: None,
+        spec_hash,
     })
 }
 
@@ -218,11 +239,12 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
     // Extract ProgramArguments strings
     let args = extract_program_arguments(&content)?;
 
-    // Parse spec, team, headless, account from ProgramArguments
+    // Parse spec, team, headless, account, spec_hash from ProgramArguments
     let mut spec: Option<String> = None;
     let mut team: Option<String> = None;
     let mut headless = false;
     let mut account: Option<String> = None;
+    let mut spec_hash: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -241,6 +263,10 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
             "--account" => {
                 i += 1;
                 account = args.get(i).cloned();
+            }
+            "--spec-hash" => {
+                i += 1;
+                spec_hash = args.get(i).cloned();
             }
             _ => {}
         }
@@ -266,6 +292,7 @@ pub fn parse_plist(path: &Path) -> Result<ScheduledRun> {
         scheduled_at,
         plist_path: path.to_path_buf(),
         account,
+        spec_hash,
     })
 }
 

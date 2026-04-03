@@ -54,6 +54,7 @@ fn test_plist_contains_label() {
         "dev-team",
         false,
         None,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-launch"),
@@ -70,6 +71,7 @@ fn test_plist_wraps_in_caffeinate() {
         "my-feature",
         "dev-team",
         true,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -89,6 +91,7 @@ fn test_plist_includes_run_args() {
         "my-feature",
         "dev-team",
         true,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -112,6 +115,7 @@ fn test_plist_excludes_headless_when_false() {
         "dev-team",
         false,
         None,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-launch"),
@@ -129,6 +133,7 @@ fn test_plist_includes_cleanup_plist_flag() {
         "my-feature",
         "dev-team",
         false,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -148,6 +153,7 @@ fn test_plist_includes_working_directory() {
         "dev-team",
         false,
         None,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-launch"),
@@ -165,6 +171,7 @@ fn test_plist_includes_calendar_interval() {
         "my-feature",
         "dev-team",
         false,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -188,6 +195,7 @@ fn test_plist_includes_binary_path() {
         "dev-team",
         false,
         None,
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-launch"),
@@ -204,6 +212,7 @@ fn test_plist_is_valid_xml() {
         "my-feature",
         "dev-team",
         false,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -362,6 +371,7 @@ fn test_plist_includes_account_flag_when_provided() {
         "dev-team",
         false,
         Some("work"),
+        None,
         Path::new("/Users/test/project"),
         scheduled_at,
         Path::new("/usr/local/bin/claude-launch"),
@@ -379,6 +389,7 @@ fn test_plist_excludes_account_flag_when_none() {
         "my-feature",
         "dev-team",
         false,
+        None,
         None,
         Path::new("/Users/test/project"),
         scheduled_at,
@@ -474,4 +485,146 @@ fn test_cleanup_plist_errors_on_nonexistent_file() {
     let missing = dir.path().join("does-not-exist.plist");
     let result = cleanup_plist(&missing);
     assert!(result.is_err());
+}
+
+// --- hash_spec_file ---
+
+#[test]
+fn test_hash_spec_file_returns_hex_string() {
+    let dir = tempfile::tempdir().unwrap();
+    let spec_path = dir.path().join("spec.md");
+    std::fs::write(&spec_path, "---\nstatus: ready\nbase_branch: main\n---\n# Spec").unwrap();
+
+    let hash = hash_spec_file(&spec_path).unwrap();
+    assert_eq!(hash.len(), 64, "SHA-256 hex should be 64 chars");
+    assert!(hash.chars().all(|c| c.is_ascii_hexdigit()), "Hash should be hex");
+    assert!(hash.chars().all(|c| !c.is_uppercase()), "Hash should be lowercase");
+}
+
+#[test]
+fn test_hash_spec_file_is_deterministic() {
+    let dir = tempfile::tempdir().unwrap();
+    let spec_path = dir.path().join("spec.md");
+    std::fs::write(&spec_path, "some content").unwrap();
+
+    let h1 = hash_spec_file(&spec_path).unwrap();
+    let h2 = hash_spec_file(&spec_path).unwrap();
+    assert_eq!(h1, h2);
+}
+
+#[test]
+fn test_hash_spec_file_differs_when_content_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let spec_path = dir.path().join("spec.md");
+    std::fs::write(&spec_path, "original").unwrap();
+    let h1 = hash_spec_file(&spec_path).unwrap();
+
+    std::fs::write(&spec_path, "modified").unwrap();
+    let h2 = hash_spec_file(&spec_path).unwrap();
+    assert_ne!(h1, h2);
+}
+
+#[test]
+fn test_hash_spec_file_errors_on_missing_file() {
+    let result = hash_spec_file(Path::new("/nonexistent/spec.md"));
+    assert!(result.is_err());
+}
+
+// --- generate_plist_xml with spec_hash ---
+
+#[test]
+fn test_plist_includes_spec_hash_when_provided() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "my-feature",
+        "dev-team",
+        false,
+        None,
+        Some("abc123deadbeef"),
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
+    )
+    .unwrap();
+    assert!(xml.contains("--spec-hash"), "Expected --spec-hash flag in plist");
+    assert!(xml.contains("abc123deadbeef"), "Expected hash value in plist");
+}
+
+#[test]
+fn test_plist_excludes_spec_hash_when_none() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "my-feature",
+        "dev-team",
+        false,
+        None,
+        None,
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.my-feature.plist"),
+    )
+    .unwrap();
+    assert!(!xml.contains("--spec-hash"), "Expected --spec-hash to be absent");
+}
+
+// --- parse_plist: --spec-hash extraction ---
+
+#[test]
+fn test_parse_plist_extracts_spec_hash_when_present() {
+    let plist_with_hash = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude-launch.my-feature</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>/usr/local/bin/claude-launch</string>
+        <string>run</string>
+        <string>--spec</string>
+        <string>my-feature</string>
+        <string>--team</string>
+        <string>dev-team</string>
+        <string>--spec-hash</string>
+        <string>abc123</string>
+        <string>--cleanup-plist</string>
+        <string>/tmp/test.plist</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/test/project</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Month</key>
+        <integer>4</integer>
+        <key>Day</key>
+        <integer>15</integer>
+        <key>Hour</key>
+        <integer>14</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+</dict>
+</plist>
+"#;
+    let dir = tempfile::tempdir().unwrap();
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
+    std::fs::write(&plist_file, plist_with_hash).unwrap();
+
+    let run = parse_plist(&plist_file).unwrap();
+    assert_eq!(run.spec_hash, Some("abc123".to_string()));
+}
+
+#[test]
+fn test_parse_plist_spec_hash_is_none_for_legacy_plist() {
+    // FIXTURE_PLIST has no --spec-hash — backward compat
+    let dir = tempfile::tempdir().unwrap();
+    let plist_file = dir.path().join("com.claude-launch.my-feature.plist");
+    std::fs::write(&plist_file, FIXTURE_PLIST).unwrap();
+
+    let run = parse_plist(&plist_file).unwrap();
+    assert!(run.spec_hash.is_none());
 }

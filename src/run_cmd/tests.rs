@@ -22,6 +22,7 @@ fn test_parse_all_flags() {
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/com.claude-launch.test.plist")),
         account: None,
+        spec_hash: None,
     });
 }
 
@@ -38,6 +39,7 @@ fn test_parse_required_flags_only() {
         headless: false,
         cleanup_plist: None,
         account: None,
+        spec_hash: None,
     });
 }
 
@@ -56,6 +58,7 @@ fn test_parse_flags_in_any_order() {
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
         account: None,
+        spec_hash: None,
     });
 }
 
@@ -126,6 +129,7 @@ fn test_parse_account_flag_with_all_flags() {
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
         account: Some("personal".to_string()),
+        spec_hash: None,
     });
 }
 
@@ -139,5 +143,31 @@ fn test_account_flag_defaults_to_none() {
 #[test]
 fn test_account_flag_missing_value_returns_error() {
     let input = args(&["--spec", "foo.md", "--team", "dev", "--account"]);
+    assert!(parse_run_args(&input).is_err());
+}
+
+// --- parse_run_args: --spec-hash flag ---
+
+#[test]
+fn test_parse_spec_hash_flag() {
+    let input = args(&[
+        "--spec", "foo.md",
+        "--team", "dev",
+        "--spec-hash", "abc123",
+    ]);
+    let result = parse_run_args(&input).unwrap();
+    assert_eq!(result.spec_hash, Some("abc123".to_string()));
+}
+
+#[test]
+fn test_spec_hash_defaults_to_none() {
+    let input = args(&["--spec", "foo.md", "--team", "dev"]);
+    let result = parse_run_args(&input).unwrap();
+    assert!(result.spec_hash.is_none());
+}
+
+#[test]
+fn test_spec_hash_flag_missing_value_returns_error() {
+    let input = args(&["--spec", "foo.md", "--team", "dev", "--spec-hash"]);
     assert!(parse_run_args(&input).is_err());
 }

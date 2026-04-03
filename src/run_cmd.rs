@@ -10,6 +10,7 @@ pub struct RunArgs {
     pub headless: bool,
     pub cleanup_plist: Option<PathBuf>,
     pub account: Option<String>,
+    pub spec_hash: Option<String>,
 }
 
 /// Parse `run` subcommand flags from an arg iterator.
@@ -22,6 +23,7 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
     let mut headless = false;
     let mut cleanup_plist: Option<PathBuf> = None;
     let mut account: Option<String> = None;
+    let mut spec_hash: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -51,6 +53,11 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
                 let val = args.get(i).filter(|v| !v.starts_with("--"));
                 account = Some(val.ok_or_else(|| anyhow::anyhow!("--account requires a value"))?.clone());
             }
+            "--spec-hash" => {
+                i += 1;
+                let val = args.get(i).filter(|v| !v.starts_with("--"));
+                spec_hash = Some(val.ok_or_else(|| anyhow::anyhow!("--spec-hash requires a value"))?.clone());
+            }
             other => {
                 anyhow::bail!("Unknown flag: {other}");
             }
@@ -64,6 +71,7 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
         headless,
         cleanup_plist,
         account,
+        spec_hash,
     })
 }
 
