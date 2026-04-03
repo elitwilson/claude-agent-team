@@ -1,6 +1,7 @@
 ---
 number: ToDo
 status: blocked
+base_branch: main
 ---
 
 # Spec Dependencies — Notes / Pre-planning

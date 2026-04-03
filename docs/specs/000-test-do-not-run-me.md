@@ -1,6 +1,7 @@
 ---
 number: 000
-status: ready
+status: blocked
+base_branch: main
 ---
 
-Only here for testing. You may exit now.
+Not a real spec. This file exists only for manual testing of the TUI. Do not run it.

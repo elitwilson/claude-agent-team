@@ -1,6 +1,7 @@
 ---
 number: 001
 status: complete
+base_branch: main
 ---
 
 # Feature: claude-bros — Rust TUI Launcher

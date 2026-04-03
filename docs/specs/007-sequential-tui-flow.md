@@ -1,6 +1,7 @@
 ---
 number: 007
 status: complete
+base_branch: main
 ---
 
 # Feature: Sequential TUI Selection Flow

@@ -1,6 +1,7 @@
 ---
 number: 004
 status: complete
+base_branch: main
 ---
 
 # Feature: Spec Status and Numbering Convention

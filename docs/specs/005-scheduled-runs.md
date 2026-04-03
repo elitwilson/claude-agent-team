@@ -1,6 +1,7 @@
 ---
 number: 005
 status: complete
+base_branch: main
 ---
 
 # Feature: Scheduled Agent Runs (Backend)

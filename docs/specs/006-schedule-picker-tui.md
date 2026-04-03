@@ -1,6 +1,7 @@
 ---
 number: 006
 status: complete
+base_branch: main
 ---
 
 # Feature: Schedule Picker TUI

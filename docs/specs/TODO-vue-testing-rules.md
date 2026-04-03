@@ -1,6 +1,7 @@
 ---
 number: ToDo
 status: idea
+base_branch: main
 ---
 
 # Vue Testing Rules — Notes / Pre-planning

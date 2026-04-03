@@ -1,6 +1,7 @@
 ---
 number: 008
 status: complete
+base_branch: main
 ---
 
 # Feature: TUI Scheduling UX
