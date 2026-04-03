@@ -2,7 +2,7 @@
 
 A TUI launcher and scheduler for autonomous Claude Code agent workflows. Pick a spec, assign a team, and `claude-launch` handles the rest: pre-flight git setup, agent session, metrics collection.
 
-The repo ships with the prompt engineering that makes the teams work — role definitions, coordination logic, and TDD workflow rules. You're not just getting a launcher; you're getting a tested set of agent workflows ready to run against your own specs.
+The system is opinionated: every run is spec-driven (humans write the spec; agents execute it) and TDD is non-negotiable. These are the guardrails that make autonomous runs reliable. The repo ships with the prompt engineering that enforces them — role definitions, coordination logic, and TDD workflow rules baked into every team.
 
 ```
 [Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
