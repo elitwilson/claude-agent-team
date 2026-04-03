@@ -13,32 +13,86 @@ pub enum SpecStatus {
     Raw,
 }
 
-/// A discovered spec file with its parsed status.
+/// A discovered spec file with its parsed status and optional block reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecEntry {
     pub name: String,
     pub status: SpecStatus,
+    pub block_reason: Option<String>,
 }
 
-/// Parse the `status` field from YAML frontmatter in a spec file's content.
-/// Returns `SpecStatus::Ready` if frontmatter is missing, empty, or contains
-/// an unrecognized status value.
-pub fn parse_frontmatter_status(content: &str) -> SpecStatus {
+/// Parsed YAML frontmatter from a spec file.
+pub struct SpecFrontmatter {
+    pub status: SpecStatus,
+    pub block_reason: Option<String>,
+    pub base_branch: Option<String>,
+}
+
+/// Parse the YAML frontmatter from a spec file's content, returning status,
+/// block reason, and base_branch.
+///
+/// Rules:
+/// - No frontmatter → `status: Raw`, everything else `None`
+/// - Has frontmatter, has `status: blocked` or `needs_attention` → `status: Blocked`,
+///   `block_reason: Some("Spec is marked blocked — requires human review before running.")`
+/// - Has frontmatter, missing `base_branch` → `status: Blocked`,
+///   `block_reason: Some("Missing required frontmatter field: base_branch")`
+/// - Has frontmatter, has valid `status`, has `base_branch` → normal status, no block reason
+pub fn parse_spec_frontmatter(content: &str) -> SpecFrontmatter {
     let Some(fm) = extract_frontmatter(content) else {
-        return SpecStatus::Raw;
+        return SpecFrontmatter {
+            status: SpecStatus::Raw,
+            block_reason: None,
+            base_branch: None,
+        };
     };
+
+    let mut raw_status: Option<&str> = None;
+    let mut base_branch: Option<String> = None;
+
     for line in fm.lines() {
         let line = line.trim();
         if let Some(value) = line.strip_prefix("status:") {
-            return match value.trim() {
-                "ready" => SpecStatus::Ready,
-                "complete" => SpecStatus::Complete,
-                "needs_attention" | "blocked" => SpecStatus::Blocked,
-                _ => SpecStatus::Ready,
-            };
+            raw_status = Some(value.trim());
+        } else if let Some(value) = line.strip_prefix("base_branch:") {
+            base_branch = Some(value.trim().to_string());
         }
     }
-    SpecStatus::Ready
+
+    // Check for explicitly blocked status first
+    match raw_status {
+        Some("needs_attention") | Some("blocked") => {
+            return SpecFrontmatter {
+                status: SpecStatus::Blocked,
+                block_reason: Some(
+                    "Spec is marked blocked — requires human review before running.".to_string(),
+                ),
+                base_branch,
+            };
+        }
+        _ => {}
+    }
+
+    // Require base_branch for all specs with frontmatter
+    if base_branch.is_none() {
+        return SpecFrontmatter {
+            status: SpecStatus::Blocked,
+            block_reason: Some("Missing required frontmatter field: base_branch".to_string()),
+            base_branch: None,
+        };
+    }
+
+    let status = match raw_status {
+        Some("ready") => SpecStatus::Ready,
+        Some("complete") => SpecStatus::Complete,
+        _ => SpecStatus::Ready,
+    };
+
+    SpecFrontmatter {
+        status,
+        block_reason: None,
+        base_branch,
+    }
 }
 
 /// Extract the YAML frontmatter block (content between `---` delimiters).
@@ -60,8 +114,6 @@ pub struct Config {
     pub specs_dir: String,
     #[serde(default = "default_team")]
     pub default_team: String,
-    #[serde(default = "default_base_branch")]
-    pub base_branch: String,
 }
 
 fn default_specs_dir() -> String {
@@ -72,16 +124,11 @@ fn default_team() -> String {
     "feature-dev".to_string()
 }
 
-fn default_base_branch() -> String {
-    "main".to_string()
-}
-
 impl Default for Config {
     fn default() -> Self {
         Self {
             specs_dir: default_specs_dir(),
             default_team: default_team(),
-            base_branch: default_base_branch(),
         }
     }
 }
@@ -102,7 +149,7 @@ impl Config {
 }
 
 /// Discover spec and requirements files (no subdirectories) in the given specs directory.
-/// Reads all text files; skips binaries (non-UTF-8) and files with `status: complete`.
+/// Reads all text files; skips binaries (non-UTF-8).
 pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
     let entries = std::fs::read_dir(specs_dir).context("Failed to read specs directory")?;
     let mut specs = Vec::new();
@@ -117,11 +164,29 @@ pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
         let Ok(content) = std::fs::read_to_string(entry.path()) else {
             continue; // skip binaries
         };
-        let status = parse_frontmatter_status(&content);
-        specs.push(SpecEntry { name, status });
+        let fm = parse_spec_frontmatter(&content);
+        specs.push(SpecEntry {
+            name,
+            status: fm.status,
+            block_reason: fm.block_reason,
+        });
     }
     specs.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(specs)
+}
+
+/// Read `base_branch` from a spec file's frontmatter. Returns an error if the
+/// file cannot be read or the field is missing.
+pub fn read_base_branch(spec_path: &Path) -> Result<String> {
+    let content = std::fs::read_to_string(spec_path)
+        .with_context(|| format!("Failed to read spec file: {}", spec_path.display()))?;
+    let fm = parse_spec_frontmatter(&content);
+    fm.base_branch.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Spec '{}' is missing required frontmatter field: base_branch",
+            spec_path.file_name().unwrap_or_default().to_string_lossy()
+        )
+    })
 }
 
 /// Discover team files from `prompts/teams/` directory, returning names without `.md` extension.

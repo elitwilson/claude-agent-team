@@ -116,9 +116,14 @@ fn run() -> Result<()> {
     // Build full relative spec path for the prompt template (e.g. docs/specs/my-feature.md)
     let spec_file_path = format!("{}/{}", config.specs_dir, selection.spec);
 
+    // Read base_branch from spec frontmatter (required field)
+    let spec_path = specs_dir.join(&selection.spec);
+    let base_branch =
+        config::read_base_branch(&spec_path).context("Failed to read base_branch from spec")?;
+
     // Preflight: clean check, checkout base, pull, create branch
     let branch =
-        preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
+        preflight::run_preflight(&base_branch, &feature_slug).context("Preflight failed")?;
 
     // Render prompt template
     let template_path = Path::new(&workflow_dir)
@@ -200,10 +205,15 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         .to_string();
     let spec_file_path = format!("{}/{}", config.specs_dir, run_args.spec);
 
+    // Read base_branch from spec frontmatter (required field)
+    let spec_path = cwd.join(&config.specs_dir).join(&run_args.spec);
+    let base_branch = config::read_base_branch(&spec_path).context("Failed to read base_branch from spec")?;
+    eprintln!("[claude-launch] run_scheduled: base_branch={base_branch}");
+
     // Preflight: clean check, checkout base, pull, create branch
     eprintln!("[claude-launch] run_scheduled: running preflight");
     let _branch =
-        preflight::run_preflight(&config.base_branch, &feature_slug).context("Preflight failed")?;
+        preflight::run_preflight(&base_branch, &feature_slug).context("Preflight failed")?;
     eprintln!("[claude-launch] run_scheduled: preflight done");
 
     // Render prompt template

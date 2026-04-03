@@ -9,6 +9,7 @@ fn spec(name: &str) -> SpecEntry {
     SpecEntry {
         name: name.to_string(),
         status: SpecStatus::Ready,
+        block_reason: None,
     }
 }
 
@@ -144,8 +145,8 @@ fn test_toggle_show_complete_clamps_spec_index() {
     prefs.show_complete = true;
     let mut app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready, block_reason: None },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete, block_reason: None },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -162,9 +163,9 @@ fn test_toggle_show_complete_clamps_spec_index() {
 #[test]
 fn test_toggle_show_blocked_clamps_spec_index() {
     let app_entries = vec![
-        SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-        SpecEntry { name: "b.md".into(), status: SpecStatus::Ready },
-        SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+        SpecEntry { name: "a.md".into(), status: SpecStatus::Ready, block_reason: None },
+        SpecEntry { name: "b.md".into(), status: SpecStatus::Ready, block_reason: None },
+        SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked, block_reason: None },
     ];
     let mut app = App::new(
         app_entries,
@@ -187,9 +188,9 @@ fn test_toggle_show_blocked_clamps_spec_index() {
 fn test_visible_specs_includes_all_by_default() {
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
-            SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked },
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready, block_reason: None },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete, block_reason: None },
+            SpecEntry { name: "c.md".into(), status: SpecStatus::Blocked, block_reason: None },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -207,8 +208,8 @@ fn test_visible_specs_hides_complete_when_show_complete_false() {
     prefs.show_complete = false;
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete },
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready, block_reason: None },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Complete, block_reason: None },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -228,8 +229,8 @@ fn test_visible_specs_hides_blocked_when_show_blocked_false() {
     prefs.show_blocked = false;
     let app = App::new(
         vec![
-            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready },
-            SpecEntry { name: "b.md".into(), status: SpecStatus::Blocked },
+            SpecEntry { name: "a.md".into(), status: SpecStatus::Ready, block_reason: None },
+            SpecEntry { name: "b.md".into(), status: SpecStatus::Blocked, block_reason: None },
         ],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -399,6 +400,7 @@ fn test_blocked_spec_is_not_confirmable() {
         vec![SpecEntry {
             name: "003-blocked.md".into(),
             status: SpecStatus::Blocked,
+            block_reason: None,
         }],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -419,6 +421,7 @@ fn test_complete_spec_is_not_confirmable() {
         vec![SpecEntry {
             name: "done.md".into(),
             status: SpecStatus::Complete,
+            block_reason: None,
         }],
         vec!["feature-dev".into()],
         "feature-dev",
@@ -532,10 +535,12 @@ fn sample_app_with_entries() -> App {
             SpecEntry {
                 name: "004-active.md".into(),
                 status: SpecStatus::Ready,
+                block_reason: None,
             },
             SpecEntry {
                 name: "005-broken.md".into(),
                 status: SpecStatus::Blocked,
+                block_reason: None,
             },
         ],
         vec!["feature-dev".into()],
@@ -585,18 +590,22 @@ fn app_with_mixed_entries() -> App {
             SpecEntry {
                 name: "001-spec.md".into(),
                 status: SpecStatus::Ready,
+                block_reason: None,
             },
             SpecEntry {
                 name: "email.txt".into(),
                 status: SpecStatus::Raw,
+                block_reason: None,
             },
             SpecEntry {
                 name: "002-spec.md".into(),
                 status: SpecStatus::Ready,
+                block_reason: None,
             },
             SpecEntry {
                 name: "notes.md".into(),
                 status: SpecStatus::Raw,
+                block_reason: None,
             },
         ],
         vec!["feature-dev".into()],

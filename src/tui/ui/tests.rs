@@ -14,6 +14,7 @@ fn spec(name: &str) -> SpecEntry {
     SpecEntry {
         name: name.to_string(),
         status: SpecStatus::Ready,
+        block_reason: None,
     }
 }
 

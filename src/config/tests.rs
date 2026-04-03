@@ -14,7 +14,6 @@ fn test_load_returns_defaults_when_no_config_file() {
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "docs/specs");
     assert_eq!(config.default_team, "feature-dev");
-    assert_eq!(config.base_branch, "main");
 }
 
 #[test]
@@ -23,13 +22,11 @@ fn test_load_parses_toml_with_all_fields() {
     let toml_content = r#"
 specs_dir = "custom/specs"
 default_team = "my-team"
-base_branch = "develop"
 "#;
     fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "custom/specs");
     assert_eq!(config.default_team, "my-team");
-    assert_eq!(config.base_branch, "develop");
 }
 
 #[test]
@@ -42,7 +39,6 @@ specs_dir = "other/specs"
     let config = Config::load(dir.path()).unwrap();
     assert_eq!(config.specs_dir, "other/specs");
     assert_eq!(config.default_team, "feature-dev");
-    assert_eq!(config.base_branch, "main");
 }
 
 #[test]
@@ -52,6 +48,19 @@ fn test_load_ignores_unknown_keys() {
 specs_dir = "docs/specs"
 unknown_key = "should be ignored"
 another_unknown = 42
+"#;
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
+    let config = Config::load(dir.path()).unwrap();
+    assert_eq!(config.specs_dir, "docs/specs");
+}
+
+#[test]
+fn test_load_ignores_base_branch_key() {
+    // Old config files with base_branch must parse without error — serde ignores unknown fields
+    let dir = create_temp_dir();
+    let toml_content = r#"
+specs_dir = "docs/specs"
+base_branch = "develop"
 "#;
     fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
     let config = Config::load(dir.path()).unwrap();
@@ -103,65 +112,188 @@ fn test_discover_specs_errors_on_nonexistent_dir() {
     assert!(result.is_err());
 }
 
-// --- Frontmatter parsing tests ---
+// --- parse_spec_frontmatter tests ---
 
 #[test]
-fn test_parse_frontmatter_status_ready() {
-    let content = "---\nstatus: ready\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+fn test_parse_spec_frontmatter_ready_with_base_branch() {
+    let content = "---\nstatus: ready\nbase_branch: main\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Ready);
+    assert!(fm.block_reason.is_none());
+    assert_eq!(fm.base_branch, Some("main".to_string()));
 }
 
 #[test]
-fn test_parse_frontmatter_status_complete() {
-    let content = "---\nstatus: complete\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Complete);
+fn test_parse_spec_frontmatter_complete_with_base_branch() {
+    let content = "---\nstatus: complete\nbase_branch: develop\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Complete);
+    assert!(fm.block_reason.is_none());
+    assert_eq!(fm.base_branch, Some("develop".to_string()));
 }
 
 #[test]
-fn test_parse_frontmatter_status_needs_attention_maps_to_blocked() {
-    // needs_attention is a legacy alias — treated as Blocked for backwards compatibility
-    let content = "---\nstatus: needs_attention\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Blocked);
+fn test_parse_spec_frontmatter_missing_base_branch_is_blocked() {
+    let content = "---\nstatus: ready\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Blocked);
+    assert_eq!(
+        fm.block_reason,
+        Some("Missing required frontmatter field: base_branch".to_string())
+    );
+    assert!(fm.base_branch.is_none());
 }
 
 #[test]
-fn test_parse_frontmatter_status_missing_frontmatter() {
+fn test_parse_spec_frontmatter_explicit_blocked_status() {
+    let content = "---\nstatus: blocked\nbase_branch: main\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Blocked);
+    assert_eq!(
+        fm.block_reason,
+        Some("Spec is marked blocked — requires human review before running.".to_string())
+    );
+    assert_eq!(fm.base_branch, Some("main".to_string()));
+}
+
+#[test]
+fn test_parse_spec_frontmatter_needs_attention_is_blocked() {
+    let content = "---\nstatus: needs_attention\nbase_branch: main\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Blocked);
+    assert!(fm.block_reason.is_some());
+}
+
+#[test]
+fn test_parse_spec_frontmatter_no_frontmatter_is_raw() {
     let content = "# My Spec\n\nNo frontmatter here.";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Raw);
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Raw);
+    assert!(fm.block_reason.is_none());
+    assert!(fm.base_branch.is_none());
 }
 
 #[test]
-fn test_parse_frontmatter_status_unrecognized_value() {
-    let content = "---\nstatus: banana\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+fn test_parse_spec_frontmatter_complete_missing_base_branch_is_blocked() {
+    // Complete specs with missing base_branch are still blocked (consistent rule, no special case)
+    let content = "---\nstatus: complete\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Blocked);
+    assert_eq!(
+        fm.block_reason,
+        Some("Missing required frontmatter field: base_branch".to_string())
+    );
 }
 
 #[test]
-fn test_parse_frontmatter_status_missing_status_field() {
-    let content = "---\nnumber: 4\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+fn test_parse_spec_frontmatter_unrecognized_status_defaults_to_ready() {
+    let content = "---\nstatus: banana\nbase_branch: main\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Ready);
+    assert!(fm.block_reason.is_none());
 }
 
 #[test]
-fn test_parse_frontmatter_status_empty_frontmatter() {
-    let content = "---\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Ready);
+fn test_parse_spec_frontmatter_missing_status_defaults_to_ready() {
+    let content = "---\nnumber: 4\nbase_branch: main\n---\n# Spec";
+    let fm = parse_spec_frontmatter(content);
+    assert_eq!(fm.status, SpecStatus::Ready);
+    assert!(fm.block_reason.is_none());
 }
 
-// --- Spec discovery with status filtering tests ---
+// --- discover_specs populates block_reason ---
+
+#[test]
+fn test_discover_specs_sets_block_reason_for_missing_base_branch() {
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-spec.md"),
+        "---\nstatus: ready\n---\n# Spec",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].status, SpecStatus::Blocked);
+    assert_eq!(
+        specs[0].block_reason,
+        Some("Missing required frontmatter field: base_branch".to_string())
+    );
+}
+
+#[test]
+fn test_discover_specs_no_block_reason_for_valid_spec() {
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-spec.md"),
+        "---\nstatus: ready\nbase_branch: main\n---\n# Spec",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].status, SpecStatus::Ready);
+    assert!(specs[0].block_reason.is_none());
+}
+
+#[test]
+fn test_discover_specs_block_reason_for_explicit_blocked() {
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-blocked.md"),
+        "---\nstatus: blocked\nbase_branch: main\n---\n# Blocked Spec",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].status, SpecStatus::Blocked);
+    assert!(specs[0].block_reason.is_some());
+}
+
+// --- read_base_branch ---
+
+#[test]
+fn test_read_base_branch_returns_value_from_frontmatter() {
+    let dir = create_temp_dir();
+    let spec_path = dir.path().join("spec.md");
+    fs::write(&spec_path, "---\nstatus: ready\nbase_branch: develop\n---\n# Spec").unwrap();
+
+    let result = read_base_branch(&spec_path).unwrap();
+    assert_eq!(result, "develop");
+}
+
+#[test]
+fn test_read_base_branch_errors_when_missing() {
+    let dir = create_temp_dir();
+    let spec_path = dir.path().join("spec.md");
+    fs::write(&spec_path, "---\nstatus: ready\n---\n# Spec").unwrap();
+
+    let result = read_base_branch(&spec_path);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("base_branch"), "error should mention base_branch, got: {msg}");
+}
+
+#[test]
+fn test_read_base_branch_errors_on_missing_file() {
+    let result = read_base_branch(Path::new("/nonexistent/spec.md"));
+    assert!(result.is_err());
+}
+
+// --- Spec discovery with status filtering tests (updated) ---
 
 #[test]
 fn test_discover_specs_includes_complete() {
-    // Complete specs are no longer filtered at discovery — filtering is the TUI's job
     let dir = create_temp_dir();
     fs::write(
         dir.path().join("001-done.md"),
-        "---\nstatus: complete\n---\n# Done",
+        "---\nstatus: complete\nbase_branch: main\n---\n# Done",
     )
     .unwrap();
     fs::write(
         dir.path().join("002-active.md"),
-        "---\nstatus: ready\n---\n# Active",
+        "---\nstatus: ready\nbase_branch: main\n---\n# Active",
     )
     .unwrap();
 
@@ -177,7 +309,7 @@ fn test_discover_specs_includes_needs_attention_as_blocked() {
     let dir = create_temp_dir();
     fs::write(
         dir.path().join("001-broken.md"),
-        "---\nstatus: needs_attention\n---\n# Broken",
+        "---\nstatus: needs_attention\nbase_branch: main\n---\n# Broken",
     )
     .unwrap();
 
@@ -201,17 +333,11 @@ fn test_discover_specs_treats_no_frontmatter_as_raw() {
 // --- Blocked status tests ---
 
 #[test]
-fn test_parse_frontmatter_status_blocked() {
-    let content = "---\nstatus: blocked\n---\n# My Spec";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Blocked);
-}
-
-#[test]
 fn test_discover_specs_includes_blocked() {
     let dir = create_temp_dir();
     fs::write(
         dir.path().join("001-blocked.md"),
-        "---\nstatus: blocked\n---\n# Blocked",
+        "---\nstatus: blocked\nbase_branch: main\n---\n# Blocked",
     )
     .unwrap();
 
@@ -221,12 +347,6 @@ fn test_discover_specs_includes_blocked() {
 }
 
 // --- Raw requirements file tests ---
-
-#[test]
-fn test_parse_frontmatter_status_no_frontmatter_returns_raw() {
-    let content = "# My Spec\n\nNo frontmatter here.";
-    assert_eq!(parse_frontmatter_status(content), SpecStatus::Raw);
-}
 
 #[test]
 fn test_discover_specs_includes_txt_file_as_raw() {
@@ -264,7 +384,7 @@ fn test_discover_specs_skips_binary_files() {
     .unwrap();
     fs::write(
         dir.path().join("spec.md"),
-        "---\nstatus: ready\n---\n# Real spec",
+        "---\nstatus: ready\nbase_branch: main\n---\n# Real spec",
     )
     .unwrap();
 
