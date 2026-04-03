@@ -21,7 +21,7 @@ use ratatui::{
 };
 
 use super::app::{App, Panel, PopupAction, Screen, SchedulePickerState, SpecRunInfo, SpecTab, TuiResult};
-use super::widgets::{AccountDialog, ActionDialog, CancelDialog, TeamDialog};
+use super::widgets::{AccountDialog, ActionDialog, BlockedReasonDialog, CancelDialog, TeamDialog};
 use super::metrics::{MetricsState, render_metrics};
 use super::schedule_picker::render_schedule_picker;
 use crate::accounts::AccountEntry;
@@ -81,6 +81,14 @@ where
                     match key.code {
                         KeyCode::Enter => app.confirm_cancel_dialog(),
                         KeyCode::Esc => app.dismiss_popup(),
+                        _ => {}
+                    }
+                }
+                Screen::Launcher
+                    if matches!(app.popup, Some(PopupAction::BlockedReasonDialog { .. })) =>
+                {
+                    match key.code {
+                        KeyCode::Esc | KeyCode::Enter => app.dismiss_popup(),
                         _ => {}
                     }
                 }
@@ -420,6 +428,8 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             f.render_widget(ActionDialog { selected: *selected }, f.area()),
         Some(PopupAction::CancelDialog { spec_slug, team, at }) =>
             f.render_widget(CancelDialog { spec_slug: spec_slug.as_str(), team: team.as_str(), at: *at }, f.area()),
+        Some(PopupAction::BlockedReasonDialog { spec_name, reason }) =>
+            f.render_widget(BlockedReasonDialog { spec_name: spec_name.as_str(), reason: reason.as_str() }, f.area()),
         None => {}
     }
 }

@@ -240,3 +240,35 @@ fn test_render_account_dialog_shows_labels() {
     assert!(output.contains("personal"), "Expected 'personal' account label in output");
     assert!(output.contains("work"), "Expected 'work' account label in output");
 }
+
+// --- BlockedReasonDialog rendering ---
+
+#[test]
+fn test_render_blocked_reason_dialog_shows_spec_name_and_reason() {
+    let mut app = App::new(
+        vec![SpecEntry {
+            name: "003-broken.md".into(),
+            status: SpecStatus::Blocked,
+            block_reason: Some("Missing required frontmatter field: base_branch".to_string()),
+        }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.popup = Some(PopupAction::BlockedReasonDialog {
+        spec_name: "003-broken.md".to_string(),
+        reason: "Missing required frontmatter field: base_branch".to_string(),
+    });
+    let output = render_to_string(&mut app, 100, 20);
+    assert!(
+        output.contains("003-broken.md"),
+        "Expected spec name in blocked dialog output"
+    );
+    assert!(
+        output.contains("base_branch"),
+        "Expected reason text in blocked dialog output"
+    );
+}

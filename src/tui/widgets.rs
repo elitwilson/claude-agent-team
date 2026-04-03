@@ -88,6 +88,28 @@ impl Widget for ActionDialog {
     }
 }
 
+pub struct BlockedReasonDialog<'a> {
+    pub spec_name: &'a str,
+    pub reason: &'a str,
+}
+
+impl Widget for BlockedReasonDialog<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let inner = popup_frame(area, 60, 9, " Blocked ", buf);
+        let lines = vec![
+            Line::from(format!("  {}", self.spec_name)),
+            Line::from(""),
+            Line::from(format!("  {}", self.reason)),
+            Line::from(""),
+            Line::from(Span::styled(
+                "          [Esc] Dismiss",
+                Style::default().add_modifier(Modifier::DIM),
+            )),
+        ];
+        Paragraph::new(lines).render(inner, buf);
+    }
+}
+
 pub struct CancelDialog<'a> {
     pub spec_slug: &'a str,
     pub team: &'a str,

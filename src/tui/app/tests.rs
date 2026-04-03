@@ -392,13 +392,61 @@ fn test_result_returns_correct_selection_after_full_flow() {
     assert!(result.headless);
 }
 
-// --- Non-confirmable specs ---
+// --- Non-confirmable specs (blocked popup routing) ---
 
 #[test]
-fn test_blocked_spec_is_not_confirmable() {
+fn test_blocked_spec_confirm_opens_blocked_reason_dialog() {
     let mut app = App::new(
         vec![SpecEntry {
             name: "003-blocked.md".into(),
+            status: SpecStatus::Blocked,
+            block_reason: Some("Missing required frontmatter field: base_branch".to_string()),
+        }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.confirm();
+    assert!(!app.confirmed);
+    assert!(matches!(
+        &app.popup,
+        Some(PopupAction::BlockedReasonDialog { .. })
+    ));
+}
+
+#[test]
+fn test_blocked_reason_dialog_carries_spec_name_and_reason() {
+    let mut app = App::new(
+        vec![SpecEntry {
+            name: "003-blocked.md".into(),
+            status: SpecStatus::Blocked,
+            block_reason: Some("Missing required frontmatter field: base_branch".to_string()),
+        }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.confirm();
+    match &app.popup {
+        Some(PopupAction::BlockedReasonDialog { spec_name, reason }) => {
+            assert_eq!(spec_name, "003-blocked.md");
+            assert_eq!(reason, "Missing required frontmatter field: base_branch");
+        }
+        other => panic!("Expected BlockedReasonDialog, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_blocked_reason_dialog_uses_fallback_reason_when_none() {
+    let mut app = App::new(
+        vec![SpecEntry {
+            name: "blocked.md".into(),
             status: SpecStatus::Blocked,
             block_reason: None,
         }],
@@ -410,9 +458,76 @@ fn test_blocked_spec_is_not_confirmable() {
         vec![],
     );
     app.confirm();
-    assert!(!app.confirmed);
+    match &app.popup {
+        Some(PopupAction::BlockedReasonDialog { reason, .. }) => {
+            assert!(!reason.is_empty());
+        }
+        other => panic!("Expected BlockedReasonDialog, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_dismiss_popup_on_blocked_reason_dialog_returns_none() {
+    let mut app = App::new(
+        vec![SpecEntry {
+            name: "003-blocked.md".into(),
+            status: SpecStatus::Blocked,
+            block_reason: Some("reason".to_string()),
+        }],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.confirm(); // opens BlockedReasonDialog
+    app.dismiss_popup();
     assert!(app.popup.is_none());
-    assert!(app.result().is_none());
+}
+
+#[test]
+fn test_popup_move_down_on_blocked_reason_dialog_is_noop() {
+    let mut app = App::new(
+        vec![spec("feature-a.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.popup = Some(PopupAction::BlockedReasonDialog {
+        spec_name: "feature-a.md".to_string(),
+        reason: "some reason".to_string(),
+    });
+    app.popup_move_down();
+    assert!(matches!(
+        &app.popup,
+        Some(PopupAction::BlockedReasonDialog { .. })
+    ));
+}
+
+#[test]
+fn test_popup_move_up_on_blocked_reason_dialog_is_noop() {
+    let mut app = App::new(
+        vec![spec("feature-a.md")],
+        vec!["feature-dev".into()],
+        "feature-dev",
+        Prefs::default(),
+        HashMap::new(),
+        PathBuf::from("/tmp/test"),
+        vec![],
+    );
+    app.popup = Some(PopupAction::BlockedReasonDialog {
+        spec_name: "feature-a.md".to_string(),
+        reason: "some reason".to_string(),
+    });
+    app.popup_move_up();
+    assert!(matches!(
+        &app.popup,
+        Some(PopupAction::BlockedReasonDialog { .. })
+    ));
 }
 
 #[test]

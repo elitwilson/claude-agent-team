@@ -42,6 +42,10 @@ pub enum PopupAction {
         team: String,
         at: DateTime<Local>,
     },
+    BlockedReasonDialog {
+        spec_name: String,
+        reason: String,
+    },
 }
 
 /// Choices available in the action popup.
@@ -511,15 +515,27 @@ impl App {
     }
 
     /// Open the team selection popup for the currently highlighted spec.
+    /// If the spec is Blocked, opens a BlockedReasonDialog.
     /// If the spec has a pending scheduled run, opens a CancelDialog instead.
-    /// No-op if the spec list is empty or the selected spec is Blocked/Complete.
+    /// No-op if the spec list is empty or the selected spec is Complete.
     pub fn open_team_popup(&mut self) {
         let visible = self.visible_specs();
         if visible.is_empty() {
             return;
         }
         let selected = visible[self.spec_index];
-        if matches!(selected.status, SpecStatus::Blocked | SpecStatus::Complete) {
+        if selected.status == SpecStatus::Blocked {
+            let reason = selected
+                .block_reason
+                .clone()
+                .unwrap_or_else(|| "This spec cannot be run.".to_string());
+            self.popup = Some(PopupAction::BlockedReasonDialog {
+                spec_name: selected.name.clone(),
+                reason,
+            });
+            return;
+        }
+        if selected.status == SpecStatus::Complete {
             return;
         }
         let slug = selected.name.strip_suffix(".md").unwrap_or(&selected.name);
@@ -541,6 +557,7 @@ impl App {
     /// Esc on AccountDialog → restores TeamDialog.
     /// Esc on ActionDialog → restores TeamDialog (or AccountDialog if accounts.len() > 1).
     /// Esc on CancelDialog → spec list (popup = None).
+    /// Esc on BlockedReasonDialog → spec list (popup = None).
     pub fn dismiss_popup(&mut self) {
         self.popup = match self.popup.take() {
             Some(PopupAction::AccountDialog { .. }) => Some(PopupAction::TeamDialog {
@@ -579,7 +596,9 @@ impl App {
                     *selected = ActionChoice::ScheduleLater;
                 }
             }
-            Some(PopupAction::CancelDialog { .. }) | None => {}
+            Some(PopupAction::CancelDialog { .. })
+            | Some(PopupAction::BlockedReasonDialog { .. })
+            | None => {}
         }
     }
 
@@ -597,7 +616,9 @@ impl App {
                     *selected = ActionChoice::ExecuteNow;
                 }
             }
-            Some(PopupAction::CancelDialog { .. }) | None => {}
+            Some(PopupAction::CancelDialog { .. })
+            | Some(PopupAction::BlockedReasonDialog { .. })
+            | None => {}
         }
     }
 
@@ -643,6 +664,10 @@ impl App {
             },
             PopupAction::CancelDialog { .. } => {
                 // Delegated to confirm_cancel_dialog — put it back and let caller route correctly
+            }
+            PopupAction::BlockedReasonDialog { .. } => {
+                // Enter on BlockedReasonDialog dismisses it (same as Esc)
+                self.popup = None;
             }
         }
     }
