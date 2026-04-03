@@ -1,6 +1,6 @@
 ---
 number: 010
-status: ready
+status: complete
 base_branch: main
 ---
 
