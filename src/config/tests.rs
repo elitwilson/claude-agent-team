@@ -174,15 +174,28 @@ fn test_parse_spec_frontmatter_no_frontmatter_is_raw() {
 }
 
 #[test]
-fn test_parse_spec_frontmatter_complete_missing_base_branch_is_blocked() {
-    // Complete specs with missing base_branch are still blocked (consistent rule, no special case)
+fn test_parse_spec_frontmatter_complete_missing_base_branch_is_complete() {
+    // Complete specs take priority over missing base_branch — they're done and non-interactable.
     let content = "---\nstatus: complete\n---\n# Spec";
     let fm = parse_spec_frontmatter(content);
-    assert_eq!(fm.status, SpecStatus::Blocked);
-    assert_eq!(
-        fm.block_reason,
-        Some("Missing required frontmatter field: base_branch".to_string())
-    );
+    assert_eq!(fm.status, SpecStatus::Complete);
+    assert!(fm.block_reason.is_none());
+}
+
+#[test]
+fn test_discover_specs_complete_without_base_branch_is_not_blocked() {
+    // Old completed specs that predate the base_branch requirement should show as complete.
+    let dir = create_temp_dir();
+    fs::write(
+        dir.path().join("001-old-done.md"),
+        "---\nstatus: complete\n---\n# Old completed spec",
+    )
+    .unwrap();
+
+    let specs = discover_specs(dir.path()).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].status, SpecStatus::Complete);
+    assert!(specs[0].block_reason.is_none());
 }
 
 #[test]

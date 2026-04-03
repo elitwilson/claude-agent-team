@@ -73,8 +73,9 @@ pub fn parse_spec_frontmatter(content: &str) -> SpecFrontmatter {
         _ => {}
     }
 
-    // Require base_branch for all specs with frontmatter
-    if base_branch.is_none() {
+    // Require base_branch for all specs with frontmatter, except complete specs —
+    // they're done and non-interactable, so missing base_branch doesn't block them.
+    if base_branch.is_none() && raw_status != Some("complete") {
         return SpecFrontmatter {
             status: SpecStatus::Blocked,
             block_reason: Some("Missing required frontmatter field: base_branch".to_string()),
