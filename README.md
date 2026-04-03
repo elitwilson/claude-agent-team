@@ -8,6 +8,8 @@ The system is opinionated: every run is spec-driven (humans write the spec; agen
 [Spec] → [TUI] → [Pre-flight] → [Agent Team] → [Metrics]
 ```
 
+> **macOS only.** The scheduler relies on launchd and the macOS Keychain. Linux and Windows are not supported and the binary will refuse to build on those platforms.
+
 ---
 
 ## How It Works
@@ -39,6 +41,8 @@ Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of 
 | `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (`investigation`) |
 | `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
 | `~/.claude/claude-launch-metrics.db` | Token usage across all runs |
+
+---
 
 ---
 
@@ -81,13 +85,13 @@ claude-launch
 
 ![TUI launcher with team picker open](docs/screenshots/tui-launcher.png)
 
-Select a spec and team. An action prompt asks whether to **Execute Now** or **Schedule Later**. Execute Now runs immediately; Schedule Later opens a date/time picker (see [Scheduled Runs](#scheduled-runs) below).
+Select a spec and team. An action prompt asks whether to **Execute Now** or **Schedule Later**. (see [Scheduled Runs](#scheduled-runs) below).
 
 > **Important:** When the agent session finishes, exit Claude Code cleanly using `/exit` or `q` within the UI. Closing the terminal tab or killing the process prevents `claude-launch` from collecting metrics after the run.
 
 ### Headless mode
 
-Toggle in the Options panel. Redirects all Claude output to a log file instead of the terminal. Useful for overnight runs.
+Toggle in the Options panel. Redirects all Claude output to a log file instead of the terminal. Scheduled runs always use headless mode.
 
 Log files are written to `logs/agent-runs/<slug>-<YYYYMMDD>.log` in your target project.
 

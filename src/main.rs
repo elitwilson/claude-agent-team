@@ -1,3 +1,6 @@
+#[cfg(not(target_os = "macos"))]
+compile_error!("claude-launch only supports macOS (scheduler requires launchd and Keychain)");
+
 mod accounts;
 mod config;
 mod install;
