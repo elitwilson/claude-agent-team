@@ -1,6 +1,6 @@
 ---
 number: 000
-status: blocked
+status: ready
 base_branch: main
 ---
 

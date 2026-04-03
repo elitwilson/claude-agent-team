@@ -72,11 +72,11 @@ fn test_resolve_workflow_dir_uses_env_var_if_set() {
 
     // SAFETY: This test runs single-threaded and restores the var immediately.
     unsafe {
-        std::env::set_var("CLAUDE_AGENT_TEAM_DIR", dir.path().to_str().unwrap());
+        std::env::set_var("CLAUDE_LAUNCH_DIR", dir.path().to_str().unwrap());
     }
     let result = resolve_workflow_dir();
     unsafe {
-        std::env::remove_var("CLAUDE_AGENT_TEAM_DIR");
+        std::env::remove_var("CLAUDE_LAUNCH_DIR");
     }
 
     assert_eq!(result.unwrap(), dir.path().to_str().unwrap());

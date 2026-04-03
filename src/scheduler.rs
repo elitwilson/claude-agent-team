@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
-use libc;
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 
 /// A scheduled agent run backed by a launchd plist.
