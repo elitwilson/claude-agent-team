@@ -16,7 +16,7 @@ The system is opinionated: every run is spec-driven (humans write the spec; agen
 
 ### Teams and prompts
 
-Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of role definitions (in `docs/roles/`). When you launch a run, `claude-launch` assembles and injects these prompts into the Claude session — the agents read their own role files at startup and coordinate from there.
+Each team is defined by an entry-point prompt (in `prompts/teams/`) and a set of agent definitions (in `prompts/agents/<team-name>/`). When you launch a run, `claude-launch` injects the team prompt into the Claude session — the lead agent reads its teammates' definitions at startup and coordinates from there.
 
 | Team | Agents | Workflow |
 |------|--------|---------|
@@ -173,6 +173,63 @@ security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 
 ---
 
+## Custom Teams
+
+The built-in teams cover common workflows, but you can define your own at two levels: user-level (available across all your projects) and project-level (scoped to one project).
+
+### Directory structure
+
+A custom team follows the same convention as the built-in ones: an entry-point prompt in `teams/` and optional agent definitions in `agents/<team-name>/`.
+
+**User-level** — available globally, created on first install:
+
+```
+~/.claude-launch/user/
+  teams/
+    my-team.md
+  agents/
+    my-team/
+      coder.md
+      reviewer.md
+```
+
+**Project-level** — scoped to the project, path set via `.claude-launch.toml`:
+
+```
+<project-root>/teams/        ← wherever custom_dir points
+  teams/
+    my-team.md
+  agents/
+    my-team/
+      coder.md
+```
+
+### Template variables
+
+Custom team prompts have two variables available for referencing their agent files:
+
+| Variable | Resolves to |
+|----------|-------------|
+| `${USER_DIR}` | `~/.claude-launch/user/` |
+| `${PROJECT_DIR}` | The resolved path of `custom_dir` in `.claude-launch.toml` |
+
+Example team prompt referencing a user-level agent:
+
+```
+Read your role: ${USER_DIR}/agents/my-team/coder.md
+```
+
+The built-in `${WORKFLOW_DIR}` variable is also available in all prompts and resolves to `~/.claude-launch/`.
+
+### Rules
+
+- Team names must be unique across built-in, user-level, and project-level sources. Any collision causes `claude-launch` to fail at startup with a clear error naming the conflict.
+- Built-in team names (`feature-dev`, `solo-dev`, `solo-with-subagent-review`, `investigation`) are effectively reserved.
+- The binary never modifies anything inside `~/.claude-launch/user/`.
+- If `custom_dir` is set in `.claude-launch.toml` but the directory does not exist, `claude-launch` fails fast with an error.
+
+---
+
 ## Configuration
 
 `claude-launch` works with no config file — all defaults apply. To override, add a `.claude-launch.toml` to your target project root:
@@ -180,7 +237,7 @@ security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 ```toml
 specs_dir = "docs/specs"       # default
 default_team = "feature-dev"   # default
-base_branch = "main"           # default
+custom_dir = "teams"           # optional — path to project-level custom teams (see Custom Teams)
 ```
 
 ---
@@ -221,7 +278,7 @@ The agent team updates the spec's `status` at the end of each run: `complete` if
 
 ### Writing a spec
 
-Copy `docs/spec-template.md` as your starting point. A spec should include:
+Copy `prompts/spec-template.md` as your starting point. A spec should include:
 
 - Summary
 - Requirements
