@@ -55,13 +55,13 @@ fn run() -> Result<()> {
     let builtin_teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
     let (user_dir, project_dir, project_teams_dir) =
         build_dirs(&workflow_dir, config.custom_dir.as_deref(), &cwd);
-    let user_teams_dir = Path::new(&user_dir);
+    let user_teams_dir = Path::new(&user_dir).join("teams");
 
     let spec_entries =
         config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
     let team_entries = config::discover_teams(
         &builtin_teams_dir,
-        user_teams_dir,
+        &user_teams_dir,
         project_teams_dir.as_deref(),
     )
     .context("Failed to discover team files")?;
@@ -251,10 +251,10 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     // Render prompt template — discover teams to get the correct path for the selected team
     eprintln!("[claude-launch] run_scheduled: rendering prompt");
     let builtin_teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
-    let user_teams_dir = Path::new(&user_dir);
+    let user_teams_dir = Path::new(&user_dir).join("teams");
     let team_entries = config::discover_teams(
         &builtin_teams_dir,
-        user_teams_dir,
+        &user_teams_dir,
         project_teams_dir.as_deref(),
     )
     .context("Failed to discover team files")?;
