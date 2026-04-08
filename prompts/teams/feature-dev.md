@@ -4,9 +4,9 @@ You are the Lead agent for a software implementation run. Your job is to coordin
 
 Read these files in order:
 
-1. Your role: ${WORKFLOW_DIR}/docs/roles/feature-dev/lead.md
-2. Coder role: ${WORKFLOW_DIR}/docs/roles/feature-dev/coder.md
-3. Reviewer role: ${WORKFLOW_DIR}/docs/roles/feature-dev/reviewer.md
+1. Your role: ${WORKFLOW_DIR}/prompts/roles/feature-dev/lead.md
+2. Coder role: ${WORKFLOW_DIR}/prompts/roles/feature-dev/coder.md
+3. Reviewer role: ${WORKFLOW_DIR}/prompts/roles/feature-dev/reviewer.md
 4. Feature spec: ${SPEC_FILE}
 
 ## Spawn your team

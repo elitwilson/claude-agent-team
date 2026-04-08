@@ -61,7 +61,7 @@ Write the spec to: `${SPECS_DIR}/00N-feature-slug.md`
 
 Where `00N` is the next available number and `feature-slug` is a short kebab-case name derived from the requirement.
 
-Follow the spec template at: ${WORKFLOW_DIR}/docs/spec-template.md
+Follow the spec template at: ${WORKFLOW_DIR}/prompts/spec-template.md
 
 ### If ready
 

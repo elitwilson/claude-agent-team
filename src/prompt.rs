@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use include_dir::{Dir, include_dir};
 
 static WORKFLOW_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/prompts");
-static DOCS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/docs");
 static RULES_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");
 static HOOKS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/hooks");
 
@@ -61,7 +60,6 @@ pub fn resolve_workflow_dir() -> Result<String> {
     std::fs::create_dir_all(&workflow_dir).context("Failed to create ~/.claude-launch")?;
 
     extract_dir(&WORKFLOW_FILES, &workflow_dir.join("prompts"))?;
-    extract_dir(&DOCS_FILES, &workflow_dir.join("docs"))?;
     extract_dir(&RULES_FILES, &workflow_dir.join("rules"))?;
     extract_dir(&HOOKS_FILES, &workflow_dir.join("hooks"))?;
 
