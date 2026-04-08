@@ -5,6 +5,8 @@ status: ready
 
 > **Numbering convention:** Spec files are prefixed with a three-digit zero-padded number (e.g. `001-claude-bros.md`) reflecting creation order. Numbers are never reused. The `number` field in frontmatter matches the file prefix. The `status` field is one of: `ready` (default for new specs), `complete` (implemented), `blocked` (Drafter could not produce a complete spec — see `## Blockers` section).
 
+> **Spec-writing instructions:** Resolve all open questions in conversation before drafting. If a question cannot be resolved, set `status: blocked` and document it in the Blockers section. Blocked specs should be rare.
+
 # Feature: <Name>
 
 ## Summary
