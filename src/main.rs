@@ -5,6 +5,7 @@ mod accounts;
 mod config;
 mod install;
 mod metrics;
+mod new_team;
 mod preflight;
 mod prefs;
 mod prompt;
