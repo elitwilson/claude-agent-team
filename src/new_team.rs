@@ -2,6 +2,7 @@ use std::io::{self, BufRead, Write as IoWrite};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use dialoguer::Select;
 
 const TEAM_SCAFFOLD: &str = "\
 This is a scaffolded team prompt that has not been configured.\n\
@@ -98,7 +99,7 @@ pub fn run(args: &[String]) -> Result<()> {
         args[0].clone()
     } else {
         let mut out = stdout.lock();
-        write!(out, "Team name: ")?;
+        write!(out, "Team name (lowercase, digits, hyphens only — e.g. my-team): ")?;
         out.flush()?;
         let mut line = String::new();
         stdin.lock().read_line(&mut line)?;
@@ -109,26 +110,38 @@ pub fn run(args: &[String]) -> Result<()> {
     validate_name(&name)?;
 
     // Step 3: prompt for level
-    {
-        let mut out = stdout.lock();
-        write!(out, "Level (user/project) [user]: ")?;
-        out.flush()?;
-    }
-    let mut level_line = String::new();
-    stdin.lock().read_line(&mut level_line)?;
-    let level = {
-        let trimmed = level_line.trim();
-        if trimmed.is_empty() { "user" } else { trimmed }.to_string()
-    };
+    let levels = &["user", "project"];
+    let level_idx = Select::new()
+        .with_prompt("Level")
+        .items(levels)
+        .default(0)
+        .interact()
+        .context("Failed to read level selection")?;
+    let level = levels[level_idx].to_string();
 
     // Step 4: resolve workflow dir and config
     let workflow_dir = prompt::resolve_workflow_dir()?;
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
-    let config = config::Config::load(&cwd)?;
+    let mut config = config::Config::load(&cwd)?;
+
+    // If project level and custom_dir isn't set, default it and write to .claude-launch.toml
+    if level == "project" && config.custom_dir.is_none() {
+        let default_custom_dir = "custom-teams".to_string();
+        config.custom_dir = Some(default_custom_dir.clone());
+        let toml_path = cwd.join(".claude-launch.toml");
+        let existing = if toml_path.exists() {
+            std::fs::read_to_string(&toml_path).context("Failed to read .claude-launch.toml")?
+        } else {
+            String::new()
+        };
+        let appended = format!("{}\ncustom_dir = \"{}\"\n", existing.trim_end(), default_custom_dir);
+        std::fs::write(&toml_path, appended).context("Failed to write .claude-launch.toml")?;
+        println!("Set custom_dir = \"{}\" in .claude-launch.toml", default_custom_dir);
+    }
 
     let target_root = resolve_target_root(&level, &workflow_dir, config.custom_dir.as_deref(), &cwd)?;
 
-    // If project level and root doesn't exist, create it
+    // Create project dir if it doesn't exist yet
     if level == "project" && !target_root.exists() {
         std::fs::create_dir_all(&target_root)
             .with_context(|| format!("Failed to create project dir: {}", target_root.display()))?;

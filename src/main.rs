@@ -20,9 +20,30 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use tui::app::RunMode;
 
+const HELP: &str = "\
+claude-launch — TUI launcher for autonomous Claude Code agent workflows
+
+USAGE:
+    claude-launch                  Launch the TUI (pick a spec and team to run)
+    claude-launch new-team         Scaffold a new custom team interactively
+    claude-launch new-team <name>  Scaffold a new custom team with the given name
+
+OPTIONS:
+    -h, --help    Print this help message
+
+SUBCOMMANDS:
+    new-team      Create a new custom team (user-level or project-level)
+";
+
 fn main() {
-    // Check for `run` subcommand before entering TUI path
     let args: Vec<String> = std::env::args().collect();
+
+    if matches!(args.get(1).map(|s| s.as_str()), Some("--help") | Some("-h")) {
+        println!("{}", HELP);
+        return;
+    }
+
+    // Check for `run` subcommand before entering TUI path
     if args.get(1).map(|s| s.as_str()) == Some("run") {
         if let Err(e) = run_scheduled(&args[2..]) {
             eprintln!("Error: {e:#}");
