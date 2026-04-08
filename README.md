@@ -44,8 +44,6 @@ Each team is defined by an entry-point prompt (in `prompts/teams/`) and a set of
 
 ---
 
----
-
 ## Installation
 
 Clone the repo and install with Cargo:
@@ -76,6 +74,13 @@ No action needed — this happens in the background before the TUI opens.
 ---
 
 ## Usage
+
+```
+claude-launch                  Launch the TUI
+claude-launch new-team         Scaffold a new custom team interactively
+claude-launch new-team <name>  Scaffold a new custom team with the given name
+claude-launch --help           Print usage
+```
 
 Run from within your target project directory:
 
@@ -177,6 +182,16 @@ security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 
 The built-in teams cover common workflows, but you can define your own at two levels: user-level (available across all your projects) and project-level (scoped to one project).
 
+### Scaffolding a new team
+
+The easiest way to get started is the `new-team` command:
+
+```bash
+claude-launch new-team
+```
+
+It prompts for a name and level, creates the directory structure, and prints the files to edit. If you choose project-level and haven't set `custom_dir` in `.claude-launch.toml` yet, it sets a default (`custom-teams`) automatically.
+
 ### Directory structure
 
 A custom team follows the same convention as the built-in ones: an entry-point prompt in `teams/` and optional agent definitions in `agents/<team-name>/`.
@@ -226,7 +241,6 @@ The built-in `${WORKFLOW_DIR}` variable is also available in all prompts and res
 - Team names must be unique across built-in, user-level, and project-level sources. Any collision causes `claude-launch` to fail at startup with a clear error naming the conflict.
 - Built-in team names (`feature-dev`, `solo-dev`, `solo-with-subagent-review`, `investigation`) are effectively reserved.
 - The binary never modifies anything inside `~/.claude-launch/user/`.
-- If `custom_dir` is set in `.claude-launch.toml` but the directory does not exist, `claude-launch` fails fast with an error.
 
 ---
 
