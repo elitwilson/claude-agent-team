@@ -273,8 +273,17 @@ Numbers are assigned in the order specs are created and are never reused.
 ---
 number: 001
 status: ready
+base_branch: main
 ---
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `number` | No | Three-digit sequence number matching the filename prefix |
+| `status` | No | See status table below — defaults to `ready` if absent |
+| `base_branch` | Yes | The git branch to check out and branch from before the run |
+
+`base_branch` is required for any spec with a `ready` status. Specs missing it are shown as `blocked` in the TUI.
 
 | Status | Meaning | Shown in TUI |
 |--------|---------|--------------|
@@ -282,9 +291,7 @@ status: ready
 | `complete` | Run finished successfully | No (filterable) |
 | `blocked` | Needs human review before proceeding | No (filterable) |
 
-Specs with missing or unrecognized status are treated as `ready`.
-
-The agent team updates the spec's `status` at the end of each run: `complete` if all tasks finished, `blocked` if any did not or if human review is needed.
+The agent team updates `status` at the end of each run: `complete` if all tasks finished, `blocked` if any did not or if human review is needed.
 
 ### Writing a spec
 
