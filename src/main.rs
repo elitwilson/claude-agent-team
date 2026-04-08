@@ -56,9 +56,12 @@ fn run() -> Result<()> {
 
     let spec_entries =
         config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
-    let teams = config::discover_teams(&teams_dir).context("Failed to discover team files")?;
+    let user_teams_dir = Path::new(&workflow_dir).join("user").join("teams");
+    let team_entries = config::discover_teams(&teams_dir, &user_teams_dir, None)
+        .context("Failed to discover team files")?;
+    let team_names: Vec<String> = team_entries.iter().map(|e| e.name.clone()).collect();
 
-    if teams.is_empty() {
+    if team_entries.is_empty() {
         anyhow::bail!("No team files found in {}", teams_dir.display());
     }
 
@@ -66,7 +69,8 @@ fn run() -> Result<()> {
     let accounts = accounts::load_accounts();
 
     // Run TUI — clears and restores terminal on exit
-    let selection = tui::ui::run_tui(spec_entries, teams, &config.default_team, &cwd, accounts)?;
+    let selection =
+        tui::ui::run_tui(spec_entries, team_names, &config.default_team, &cwd, accounts)?;
     let selection = match selection {
         Some(s) => s,
         None => {

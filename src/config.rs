@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -190,22 +190,127 @@ pub fn read_base_branch(spec_path: &Path) -> Result<String> {
     })
 }
 
-/// Discover team files from `prompts/teams/` directory, returning names without `.md` extension.
-pub fn discover_teams(teams_dir: &Path) -> Result<Vec<String>> {
-    let entries = std::fs::read_dir(teams_dir).context("Failed to read teams directory")?;
-    let mut teams = Vec::new();
-    for entry in entries {
+/// Which source a team was loaded from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TeamSource {
+    BuiltIn,
+    User,
+    Project,
+}
+
+/// A discovered team with its name, absolute path, and source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TeamEntry {
+    pub name: String,
+    pub path: PathBuf,
+    pub source: TeamSource,
+}
+
+/// Discover team files from multiple sources, merging them with collision detection.
+///
+/// - `builtin_teams_dir`: must exist; error if missing.
+/// - `user_teams_dir`: silently skipped if missing (user may have no custom teams).
+/// - `project_teams_dir`: if `Some` but missing on disk, returns an error (misconfiguration).
+///
+/// If any team name appears in more than one source, returns an error listing all conflicts.
+/// Returns entries sorted by name.
+pub fn discover_teams(
+    builtin_teams_dir: &Path,
+    user_teams_dir: &Path,
+    project_teams_dir: Option<&Path>,
+) -> Result<Vec<TeamEntry>> {
+    // Fail fast if a configured project dir is missing.
+    if let Some(proj_dir) = project_teams_dir {
+        if !proj_dir.exists() {
+            anyhow::bail!(
+                "custom_dir project teams directory does not exist: {}",
+                proj_dir.display()
+            );
+        }
+    }
+
+    let mut entries: Vec<TeamEntry> = Vec::new();
+
+    // Built-in dir: required — propagate error if missing.
+    let builtin_entries =
+        std::fs::read_dir(builtin_teams_dir).context("Failed to read built-in teams directory")?;
+    for entry in builtin_entries {
         let entry = entry?;
         if entry.file_type()?.is_file() {
-            if let Some(name) = entry.file_name().to_str() {
-                if let Some(stem) = name.strip_suffix(".md") {
-                    teams.push(stem.to_string());
+            if let Some(stem) = md_stem(&entry) {
+                entries.push(TeamEntry {
+                    name: stem,
+                    path: entry.path(),
+                    source: TeamSource::BuiltIn,
+                });
+            }
+        }
+    }
+
+    // User dir: silently skip if missing.
+    if user_teams_dir.exists() {
+        let user_entries = std::fs::read_dir(user_teams_dir)
+            .context("Failed to read user teams directory")?;
+        for entry in user_entries {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                if let Some(stem) = md_stem(&entry) {
+                    entries.push(TeamEntry {
+                        name: stem,
+                        path: entry.path(),
+                        source: TeamSource::User,
+                    });
                 }
             }
         }
     }
-    teams.sort();
-    Ok(teams)
+
+    // Project dir: already verified to exist above if Some.
+    if let Some(proj_dir) = project_teams_dir {
+        let proj_entries =
+            std::fs::read_dir(proj_dir).context("Failed to read project teams directory")?;
+        for entry in proj_entries {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                if let Some(stem) = md_stem(&entry) {
+                    entries.push(TeamEntry {
+                        name: stem,
+                        path: entry.path(),
+                        source: TeamSource::Project,
+                    });
+                }
+            }
+        }
+    }
+
+    // Collision detection: collect all names that appear more than once.
+    let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for e in &entries {
+        *seen.entry(e.name.as_str()).or_insert(0) += 1;
+    }
+    let mut conflicts: Vec<&str> = seen
+        .into_iter()
+        .filter(|(_, count)| *count > 1)
+        .map(|(name, _)| name)
+        .collect();
+    if !conflicts.is_empty() {
+        conflicts.sort();
+        anyhow::bail!(
+            "Team name collision — the following team names appear in more than one source: {}",
+            conflicts.join(", ")
+        );
+    }
+
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+fn md_stem(entry: &std::fs::DirEntry) -> Option<String> {
+    entry
+        .file_name()
+        .to_str()
+        .and_then(|n| n.strip_suffix(".md"))
+        .map(|s| s.to_string())
 }
 
 #[cfg(test)]
