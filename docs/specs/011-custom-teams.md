@@ -1,6 +1,6 @@
 ---
 number: 011
-status: ready
+status: complete
 base_branch: main
 ---
 
