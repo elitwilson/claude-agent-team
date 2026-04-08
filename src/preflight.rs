@@ -17,8 +17,10 @@ pub fn run_preflight(base_branch: &str, feature_slug: &str) -> Result<String> {
     run_git(&["checkout", base_branch])
         .with_context(|| format!("Failed to checkout {base_branch}"))?;
 
-    // Pull latest
-    run_git(&["pull"]).context("Failed to pull latest changes")?;
+    // Pull latest (only if the branch has a remote tracking branch)
+    if has_upstream()? {
+        run_git(&["pull"]).context("Failed to pull latest changes")?;
+    }
 
     // Create and checkout feature branch
     run_git(&["checkout", "-b", &branch_name])
@@ -40,6 +42,14 @@ pub fn check_clean_working_tree() -> Result<()> {
         bail!("Working tree is not clean. Please commit or stash your changes first.");
     }
     Ok(())
+}
+
+fn has_upstream() -> Result<bool> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "@{upstream}"])
+        .output()
+        .context("Failed to check for upstream branch")?;
+    Ok(output.status.success())
 }
 
 fn run_git(args: &[&str]) -> Result<()> {
