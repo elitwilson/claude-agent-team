@@ -143,6 +143,8 @@ fn run() -> Result<()> {
         &feature_slug,
         &workflow_dir,
         &selection.team,
+        "",
+        "",
     )?;
 
     // Record start time
@@ -249,6 +251,8 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         &feature_slug,
         &workflow_dir,
         &run_args.team,
+        "",
+        "",
     )?;
 
     let started_at = Utc::now().to_rfc3339();

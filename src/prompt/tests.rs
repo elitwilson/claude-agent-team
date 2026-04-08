@@ -17,6 +17,8 @@ fn test_render_prompt_substitutes_all_variables() {
         "my-feature",
         "/home/user/repo",
         "feature-dev",
+        "/home/user/.claude-launch/user",
+        "",
     )
     .unwrap();
 
@@ -33,7 +35,8 @@ fn test_render_prompt_handles_repeated_variables() {
     let template_path = dir.path().join("template.md");
     fs::write(&template_path, template).unwrap();
 
-    let result = render_prompt(&template_path, "spec.md", "slug", "/dir", "team").unwrap();
+    let result =
+        render_prompt(&template_path, "spec.md", "slug", "/dir", "team", "/user", "").unwrap();
     assert_eq!(result, "spec.md and spec.md again");
 }
 
@@ -45,6 +48,8 @@ fn test_render_prompt_errors_on_missing_template() {
         "slug",
         "/dir",
         "team",
+        "/user",
+        "",
     );
     assert!(result.is_err());
 }
@@ -56,8 +61,99 @@ fn test_render_prompt_preserves_non_variable_text() {
     let template_path = dir.path().join("template.md");
     fs::write(&template_path, template).unwrap();
 
-    let result = render_prompt(&template_path, "spec.md", "slug", "/dir", "team").unwrap();
+    let result =
+        render_prompt(&template_path, "spec.md", "slug", "/dir", "team", "/user", "").unwrap();
     assert_eq!(result, "Plain text with no variables at all.");
+}
+
+#[test]
+fn test_render_prompt_substitutes_user_dir() {
+    let dir = TempDir::new().unwrap();
+    let template = "Agent: ${USER_DIR}/agents/foo/coder.md";
+    let template_path = dir.path().join("template.md");
+    fs::write(&template_path, template).unwrap();
+
+    let result = render_prompt(
+        &template_path,
+        "spec.md",
+        "slug",
+        "/workflow",
+        "team",
+        "/home/user/.claude-launch/user",
+        "",
+    )
+    .unwrap();
+
+    assert_eq!(
+        result,
+        "Agent: /home/user/.claude-launch/user/agents/foo/coder.md"
+    );
+}
+
+#[test]
+fn test_render_prompt_substitutes_project_dir() {
+    let dir = TempDir::new().unwrap();
+    let template = "Agent: ${PROJECT_DIR}/agents/foo/coder.md";
+    let template_path = dir.path().join("template.md");
+    fs::write(&template_path, template).unwrap();
+
+    let result = render_prompt(
+        &template_path,
+        "spec.md",
+        "slug",
+        "/workflow",
+        "team",
+        "/user",
+        "/home/user/project/custom-teams",
+    )
+    .unwrap();
+
+    assert_eq!(
+        result,
+        "Agent: /home/user/project/custom-teams/agents/foo/coder.md"
+    );
+}
+
+#[test]
+fn test_render_prompt_project_dir_empty_string_substitutes_nothing() {
+    let dir = TempDir::new().unwrap();
+    let template = "Prefix: ${PROJECT_DIR}";
+    let template_path = dir.path().join("template.md");
+    fs::write(&template_path, template).unwrap();
+
+    let result = render_prompt(
+        &template_path,
+        "spec.md",
+        "slug",
+        "/workflow",
+        "team",
+        "/user",
+        "",
+    )
+    .unwrap();
+
+    assert_eq!(result, "Prefix: ");
+}
+
+// --- user dir creation tests ---
+
+#[test]
+fn test_resolve_workflow_dir_creates_user_teams_dir() {
+    let dir = TempDir::new().unwrap();
+    let prompts_dir = dir.path().join("prompts");
+    fs::create_dir(&prompts_dir).unwrap();
+
+    unsafe {
+        std::env::set_var("CLAUDE_LAUNCH_DIR", dir.path().to_str().unwrap());
+    }
+    let result = resolve_workflow_dir();
+    unsafe {
+        std::env::remove_var("CLAUDE_LAUNCH_DIR");
+    }
+
+    result.unwrap();
+    assert!(dir.path().join("user").join("teams").exists());
+    assert!(dir.path().join("user").join("agents").exists());
 }
 
 // --- resolve_workflow_dir tests ---

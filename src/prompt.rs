@@ -14,6 +14,8 @@ pub fn render_prompt(
     feature_slug: &str,
     workflow_dir: &str,
     team: &str,
+    user_dir: &str,
+    project_dir: &str,
 ) -> Result<String> {
     let template = std::fs::read_to_string(template_path)
         .with_context(|| format!("Failed to read template at {}", template_path.display()))?;
@@ -22,7 +24,9 @@ pub fn render_prompt(
         .replace("${SPEC_FILE}", spec_file)
         .replace("${FEATURE_SLUG}", feature_slug)
         .replace("${WORKFLOW_DIR}", workflow_dir)
-        .replace("${TEAM}", team);
+        .replace("${TEAM}", team)
+        .replace("${USER_DIR}", user_dir)
+        .replace("${PROJECT_DIR}", project_dir);
 
     Ok(rendered)
 }
@@ -51,6 +55,7 @@ pub fn resolve_workflow_dir() -> Result<String> {
     // Check env var first (allows override for development)
     if let Ok(dir) = std::env::var("CLAUDE_LAUNCH_DIR") {
         if Path::new(&dir).join("prompts").exists() {
+            create_user_dirs(Path::new(&dir))?;
             return Ok(dir);
         }
     }
@@ -62,11 +67,22 @@ pub fn resolve_workflow_dir() -> Result<String> {
     extract_dir(&WORKFLOW_FILES, &workflow_dir.join("prompts"))?;
     extract_dir(&RULES_FILES, &workflow_dir.join("rules"))?;
     extract_dir(&HOOKS_FILES, &workflow_dir.join("hooks"))?;
+    create_user_dirs(&workflow_dir)?;
 
     workflow_dir
         .to_str()
         .map(String::from)
         .context("Workflow dir path is not valid UTF-8")
+}
+
+/// Create `<workflow_dir>/user/teams/` and `<workflow_dir>/user/agents/` if they don't exist.
+/// Idempotent — safe to call on every run.
+pub fn create_user_dirs(workflow_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(workflow_dir.join("user").join("teams"))
+        .context("Failed to create user/teams directory")?;
+    std::fs::create_dir_all(workflow_dir.join("user").join("agents"))
+        .context("Failed to create user/agents directory")?;
+    Ok(())
 }
 
 /// Recursively extract an embedded Dir to a filesystem path.

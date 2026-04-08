@@ -140,8 +140,14 @@ pub fn run_install() -> Result<()> {
 
     link_rules(&workflow_dir, &claude_dir)?;
     register_hooks(&workflow_dir, &settings_path)?;
+    create_user_dirs(&workflow_dir)?;
     println!("\nInstall complete.");
     Ok(())
+}
+
+/// Create `<workflow_dir>/user/teams/` and `<workflow_dir>/user/agents/`.
+pub fn create_user_dirs(workflow_dir: &Path) -> Result<()> {
+    crate::prompt::create_user_dirs(workflow_dir)
 }
 
 #[cfg(test)]
