@@ -441,14 +441,6 @@ fn test_discover_specs_skips_binary_files() {
 
 // --- Team discovery tests (new multi-source API) ---
 
-fn make_teams_dir(root: &TempDir, subpath: &str, teams: &[&str]) {
-    let dir = root.path().join(subpath);
-    fs::create_dir_all(&dir).unwrap();
-    for name in teams {
-        fs::write(dir.join(format!("{}.md", name)), "# Team").unwrap();
-    }
-}
-
 #[test]
 fn test_discover_teams_builtin_only() {
     let builtin = create_temp_dir();

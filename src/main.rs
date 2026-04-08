@@ -52,17 +52,23 @@ fn run() -> Result<()> {
 
     // Discover specs and teams
     let specs_dir = cwd.join(&config.specs_dir);
-    let teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
+    let builtin_teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
+    let (user_dir, project_dir, project_teams_dir) =
+        build_dirs(&workflow_dir, config.custom_dir.as_deref(), &cwd);
+    let user_teams_dir = Path::new(&user_dir);
 
     let spec_entries =
         config::discover_specs(&specs_dir).context("Failed to discover spec files")?;
-    let user_teams_dir = Path::new(&workflow_dir).join("user").join("teams");
-    let team_entries = config::discover_teams(&teams_dir, &user_teams_dir, None)
-        .context("Failed to discover team files")?;
+    let team_entries = config::discover_teams(
+        &builtin_teams_dir,
+        user_teams_dir,
+        project_teams_dir.as_deref(),
+    )
+    .context("Failed to discover team files")?;
     let team_names: Vec<String> = team_entries.iter().map(|e| e.name.clone()).collect();
 
     if team_entries.is_empty() {
-        anyhow::bail!("No team files found in {}", teams_dir.display());
+        anyhow::bail!("No team files found in {}", builtin_teams_dir.display());
     }
 
     // Load accounts (empty vec if no config file)
@@ -132,19 +138,19 @@ fn run() -> Result<()> {
     let branch =
         preflight::run_preflight(&base_branch, &feature_slug).context("Preflight failed")?;
 
-    // Render prompt template
-    let template_path = Path::new(&workflow_dir)
-        .join("prompts")
-        .join("teams")
-        .join(format!("{}.md", selection.team));
+    // Look up selected team entry to get its absolute path
+    let team_entry = find_team_entry(&team_entries, &selection.team)
+        .with_context(|| format!("Selected team '{}' not found in discovered entries", selection.team))?;
+
+    // Render prompt template using the entry's path directly (works for built-in, user, and project teams)
     let rendered_prompt = prompt::render_prompt(
-        &template_path,
+        &team_entry.path,
         &spec_file_path,
         &feature_slug,
         &workflow_dir,
         &selection.team,
-        "",
-        "",
+        &user_dir,
+        &project_dir,
     )?;
 
     // Record start time
@@ -207,6 +213,9 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     let workflow_dir = prompt::resolve_workflow_dir()?;
     eprintln!("[claude-launch] run_scheduled: workflow_dir={workflow_dir}");
 
+    let (user_dir, project_dir, project_teams_dir) =
+        build_dirs(&workflow_dir, config.custom_dir.as_deref(), &cwd);
+
     let feature_slug = run_args
         .spec
         .strip_suffix(".md")
@@ -239,20 +248,26 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         preflight::run_preflight(&base_branch, &feature_slug).context("Preflight failed")?;
     eprintln!("[claude-launch] run_scheduled: preflight done");
 
-    // Render prompt template
+    // Render prompt template — discover teams to get the correct path for the selected team
     eprintln!("[claude-launch] run_scheduled: rendering prompt");
-    let template_path = Path::new(&workflow_dir)
-        .join("prompts")
-        .join("teams")
-        .join(format!("{}.md", run_args.team));
+    let builtin_teams_dir = Path::new(&workflow_dir).join("prompts").join("teams");
+    let user_teams_dir = Path::new(&user_dir);
+    let team_entries = config::discover_teams(
+        &builtin_teams_dir,
+        user_teams_dir,
+        project_teams_dir.as_deref(),
+    )
+    .context("Failed to discover team files")?;
+    let team_entry = find_team_entry(&team_entries, &run_args.team)
+        .with_context(|| format!("Scheduled team '{}' not found in discovered entries", run_args.team))?;
     let rendered_prompt = prompt::render_prompt(
-        &template_path,
+        &team_entry.path,
         &spec_file_path,
         &feature_slug,
         &workflow_dir,
         &run_args.team,
-        "",
-        "",
+        &user_dir,
+        &project_dir,
     )?;
 
     let started_at = Utc::now().to_rfc3339();
@@ -294,6 +309,34 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Compute `user_dir` and `project_dir` strings plus the optional `project_teams_dir` path
+/// from the resolved `workflow_dir` and config's `custom_dir`.
+///
+/// - `user_dir`  → `<workflow_dir>/user`
+/// - `project_dir` → `<cwd>/<custom_dir>` if configured, empty string otherwise
+/// - `project_teams_dir` → `Some(<cwd>/<custom_dir>/teams)` if configured, `None` otherwise
+fn build_dirs(
+    workflow_dir: &str,
+    custom_dir: Option<&str>,
+    cwd: &Path,
+) -> (String, String, Option<std::path::PathBuf>) {
+    let user_dir = format!("{}/user", workflow_dir);
+    let (project_dir, project_teams_dir) = match custom_dir {
+        Some(d) => {
+            let base = cwd.join(d);
+            let teams = base.join("teams");
+            (base.to_string_lossy().into_owned(), Some(teams))
+        }
+        None => (String::new(), None),
+    };
+    (user_dir, project_dir, project_teams_dir)
+}
+
+/// Find a `TeamEntry` by name from a slice of entries.
+fn find_team_entry<'a>(entries: &'a [config::TeamEntry], name: &str) -> Option<&'a config::TeamEntry> {
+    entries.iter().find(|e| e.name == name)
 }
 
 fn collect_metrics(
@@ -350,5 +393,63 @@ fn collect_metrics(
             eprintln!("Warning: Metrics collection failed: {e:#}");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // --- build_dirs tests ---
+
+    #[test]
+    fn test_build_dirs_no_custom_dir() {
+        let (user_dir, project_dir, project_teams_dir) =
+            build_dirs("/home/user/.claude-launch", None, Path::new("/project"));
+        assert_eq!(user_dir, "/home/user/.claude-launch/user");
+        assert_eq!(project_dir, "");
+        assert!(project_teams_dir.is_none());
+    }
+
+    #[test]
+    fn test_build_dirs_with_custom_dir() {
+        let cwd = PathBuf::from("/project/root");
+        let (user_dir, project_dir, project_teams_dir) =
+            build_dirs("/home/user/.claude-launch", Some("custom-teams"), &cwd);
+        assert_eq!(user_dir, "/home/user/.claude-launch/user");
+        assert_eq!(project_dir, "/project/root/custom-teams");
+        assert_eq!(
+            project_teams_dir,
+            Some(PathBuf::from("/project/root/custom-teams/teams"))
+        );
+    }
+
+    // --- find_team_entry tests ---
+
+    #[test]
+    fn test_find_team_entry_returns_matching_entry() {
+        let entries = vec![
+            config::TeamEntry {
+                name: "alpha".to_string(),
+                path: PathBuf::from("/some/alpha.md"),
+                source: config::TeamSource::BuiltIn,
+            },
+            config::TeamEntry {
+                name: "beta".to_string(),
+                path: PathBuf::from("/some/beta.md"),
+                source: config::TeamSource::User,
+            },
+        ];
+
+        let found = find_team_entry(&entries, "beta").unwrap();
+        assert_eq!(found.name, "beta");
+        assert!(matches!(found.source, config::TeamSource::User));
+    }
+
+    #[test]
+    fn test_find_team_entry_returns_none_for_unknown() {
+        let entries: Vec<config::TeamEntry> = vec![];
+        assert!(find_team_entry(&entries, "ghost").is_none());
     }
 }

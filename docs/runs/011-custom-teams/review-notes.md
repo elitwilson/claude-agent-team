@@ -72,3 +72,33 @@ The spec explicitly assigns to Task 3: "In `src/install.rs` `run_install()`, do 
 - The three `render_prompt` substitution tests assert on observable output — no implementation detail issues.
 - The `resolve_workflow_dir` test correctly asserts both dirs in a single test — no issue with that approach.
 - All other Task 3 requirements are covered.
+
+---
+
+## Task 4: main.rs wiring
+
+**Verdict: APPROVED**
+
+### Requirements checklist vs. tests
+
+| Requirement | Test(s) | Status |
+|---|---|---|
+| `user_dir = format!("{}/user", workflow_dir)` computed correctly | `test_build_dirs_no_custom_dir`, `test_build_dirs_with_custom_dir` | covered |
+| `project_dir = cwd.join(d).to_string_lossy()` when `custom_dir` is `Some` | `test_build_dirs_with_custom_dir` | covered |
+| `project_dir = ""` when `custom_dir` is `None` | `test_build_dirs_no_custom_dir` | covered |
+| `project_teams_dir = Some(cwd.join(d).join("teams"))` when `custom_dir` is `Some` | `test_build_dirs_with_custom_dir` | covered |
+| `project_teams_dir = None` when `custom_dir` is `None` | `test_build_dirs_no_custom_dir` | covered |
+| Find selected `TeamEntry` by name after TUI selection | `test_find_team_entry_returns_matching_entry` | covered |
+| Return `None` for unknown team name | `test_find_team_entry_returns_none_for_unknown` | covered |
+| Pass dirs to `discover_teams()` and `render_prompt()` in `run()` | not unit-testable (TUI + external process deps) | N/A |
+| Pass dirs to `discover_teams()` and `render_prompt()` in `run_scheduled()` | not unit-testable (TUI + external process deps) | N/A |
+| Switch template loading to `TeamEntry.path` directly | not unit-testable (wiring in non-testable function) | N/A |
+| Extract team names from `Vec<TeamEntry>` for TUI call | trivial inline transform, no extractable logic to test | N/A |
+| Both `run()` and `run_scheduled()` updated | not unit-testable | N/A |
+
+### Notes
+
+- All extractable logic is encapsulated in `build_dirs` and `find_team_entry`. Both helpers are tested against observable return values — no implementation detail testing.
+- The wiring of these helpers into `run()` and `run_scheduled()` (passing to `discover_teams`, `render_prompt`, switching to `TeamEntry.path`, updating the scheduled path) is not unit-testable due to TUI and external process dependencies. This is an acknowledged gap in the test surface, not a test authoring gap.
+- The `find_team_entry` tests cover both the happy path (returns correct entry with correct fields) and the not-found path (returns `None`). The source field assertion in `test_find_team_entry_returns_matching_entry` confirms the correct entry — not just the name — was returned.
+- No spec requirement that has a testable unit-test form is left without coverage.
