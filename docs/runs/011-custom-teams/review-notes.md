@@ -22,3 +22,24 @@
 - `test_discover_teams_missing_builtin_dir_errors` is not explicitly required by the spec but is consistent with it (builtin dir is never optional) and is not a misalignment.
 - All tests assert on observable behavior (return type, error message content, entry fields) — no implementation detail testing detected.
 - No spec requirement for Task 1 is left without coverage.
+
+---
+
+## Task 2: Config custom_dir field
+
+**Verdict: APPROVED**
+
+### Requirements checklist vs. tests
+
+| Requirement | Test(s) | Status |
+|---|---|---|
+| `custom_dir: Option<String>` field exists on `Config` | all three tests (field access would fail to compile otherwise) | covered |
+| Absent from TOML defaults to `None` | `test_load_custom_dir_absent_defaults_to_none` | covered |
+| Present in TOML parses as `Some(String)` | `test_load_custom_dir_parses_when_present` | covered |
+| No-config-file case defaults to `None` | `test_load_default_config_has_no_custom_dir` | covered |
+
+### Notes
+
+- Runtime resolution relative to project root (spec requirement) is a `main.rs` concern (Task 4), not a `Config` struct concern. No test is required here for that.
+- All three tests assert on observable behavior via `Config::load()` return value — no implementation detail testing detected.
+- No spec requirement for Task 2 is left without coverage.

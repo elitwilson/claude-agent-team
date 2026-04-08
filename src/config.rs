@@ -115,6 +115,8 @@ pub struct Config {
     pub specs_dir: String,
     #[serde(default = "default_team")]
     pub default_team: String,
+    #[serde(default)]
+    pub custom_dir: Option<String>,
 }
 
 fn default_specs_dir() -> String {
@@ -130,6 +132,7 @@ impl Default for Config {
         Self {
             specs_dir: default_specs_dir(),
             default_team: default_team(),
+            custom_dir: None,
         }
     }
 }

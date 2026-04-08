@@ -67,6 +67,39 @@ base_branch = "develop"
     assert_eq!(config.specs_dir, "docs/specs");
 }
 
+// --- Config custom_dir tests ---
+
+#[test]
+fn test_load_custom_dir_absent_defaults_to_none() {
+    let dir = create_temp_dir();
+    let toml_content = r#"
+specs_dir = "docs/specs"
+default_team = "feature-dev"
+"#;
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
+    let config = Config::load(dir.path()).unwrap();
+    assert!(config.custom_dir.is_none());
+}
+
+#[test]
+fn test_load_custom_dir_parses_when_present() {
+    let dir = create_temp_dir();
+    let toml_content = r#"
+specs_dir = "docs/specs"
+custom_dir = "custom-teams"
+"#;
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
+    let config = Config::load(dir.path()).unwrap();
+    assert_eq!(config.custom_dir, Some("custom-teams".to_string()));
+}
+
+#[test]
+fn test_load_default_config_has_no_custom_dir() {
+    let dir = create_temp_dir();
+    let config = Config::load(dir.path()).unwrap();
+    assert!(config.custom_dir.is_none());
+}
+
 // --- Spec discovery tests ---
 
 #[test]
