@@ -27,7 +27,7 @@ Each team is defined by an entry-point prompt (in `prompts/teams/`) and a set of
 
 ### Run lifecycle
 
-1. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
+1. **Pre-flight** — validates clean git state and that the base branch exists locally, checks out base branch, creates `feature/<slug>-<YYYYMMDD>`
 2. **Agent session** — the selected team reads the spec and its role definitions, then runs its workflow autonomously
 3. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite
 4. **Summary** — branch name and metrics status printed to stdout
