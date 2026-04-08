@@ -91,6 +91,15 @@ fn test_resolve_target_root_project_level_no_custom_dir_errors() {
     );
 }
 
+#[test]
+fn test_resolve_target_root_invalid_level_errors() {
+    let cwd = make_temp();
+    let result = resolve_target_root("projet", "/fake/workflow", None, cwd.path());
+    assert!(result.is_err(), "expected error for invalid level");
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("user") && msg.contains("project"), "error should name valid options, got: {msg}");
+}
+
 // --- scaffold_team tests ---
 
 #[test]

@@ -37,6 +37,9 @@ pub(crate) fn resolve_target_root(
     custom_dir: Option<&str>,
     cwd: &Path,
 ) -> Result<PathBuf> {
+    if level != "user" && level != "project" {
+        anyhow::bail!("Level must be 'user' or 'project', got '{level}'");
+    }
     match level {
         "project" => {
             let dir = custom_dir.ok_or_else(|| {
