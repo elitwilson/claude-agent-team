@@ -172,7 +172,7 @@ pub fn discover_specs(specs_dir: &Path) -> Result<Vec<SpecEntry>> {
             block_reason: fm.block_reason,
         });
     }
-    specs.sort_by(|a, b| a.name.cmp(&b.name));
+    specs.sort_by(|a, b| b.name.cmp(&a.name));
     Ok(specs)
 }
 
