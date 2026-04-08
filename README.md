@@ -123,19 +123,13 @@ To cancel a pending run, select the spec in the TUI (it shows the scheduled time
 
 ## Authentication
 
-By default, `claude-launch` uses whatever Claude account you're already logged into via the Claude Code CLI — no configuration needed. Just run `claude-launch` and it works.
+By default, `claude-launch` uses whatever Claude account you're already logged into via the Claude Code CLI — no configuration needed. This applies to both interactive and scheduled runs.
 
-The Keychain integration is only needed if you want to run **scheduled (headless) runs** or switch between **multiple Claude accounts**.
+The Keychain integration is only needed if you want to switch between **multiple Claude accounts**.
 
-### Single account (headless/scheduled runs)
+### Single account
 
-Store your OAuth token in the macOS Keychain so scheduled runs can authenticate unattended:
-
-```bash
-security add-generic-password -s claude-token-1 -a claude -w <your-token>
-```
-
-No further configuration needed — `claude-launch` will pick it up automatically.
+No setup required. `claude-launch` inherits your active Claude session automatically.
 
 ### Multiple accounts
 
