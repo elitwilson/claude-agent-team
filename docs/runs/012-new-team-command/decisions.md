@@ -11,3 +11,5 @@
 
 - Integration test uses a tempdir for user-level scaffold to avoid touching `~/.claude-launch/user/`.
 - `run_new_team` is a thin wrapper that calls `new_team::run()`, mirroring `run_scheduled`.
+- The integration tests in `main.rs` call `new_team::scaffold_team` directly because `run_new_team` → `new_team::run()` requires stdin and `resolve_workflow_dir()` (real filesystem). Testing via `scaffold_team` is the correct level of abstraction — it tests the observable outcome (files created with correct content) without coupling to stdin/filesystem setup.
+- Tests were written first (they happen to pass immediately since Task 1 already implements `scaffold_team`). The RED state for Task 2 is the missing `run_new_team` function and dispatch in `main()` — compile errors if called.

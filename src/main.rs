@@ -31,6 +31,14 @@ fn main() {
         return;
     }
 
+    if args.get(1).map(|s| s.as_str()) == Some("new-team") {
+        if let Err(e) = run_new_team(&args[2..]) {
+            eprintln!("Error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
     if let Err(e) = run() {
         eprintln!("Error: {e:#}");
         std::process::exit(1);
@@ -312,6 +320,10 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     Ok(())
 }
 
+fn run_new_team(args: &[String]) -> Result<()> {
+    new_team::run(args)
+}
+
 /// Compute `user_dir` and `project_dir` strings plus the optional `project_teams_dir` path
 /// from the resolved `workflow_dir` and config's `custom_dir`.
 ///
@@ -400,7 +412,9 @@ fn collect_metrics(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     // --- build_dirs tests ---
 
@@ -452,5 +466,66 @@ mod tests {
     fn test_find_team_entry_returns_none_for_unknown() {
         let entries: Vec<config::TeamEntry> = vec![];
         assert!(find_team_entry(&entries, "ghost").is_none());
+    }
+
+    // --- run_new_team integration tests ---
+
+    #[test]
+    fn test_run_new_team_scaffolds_team_file_with_correct_content() {
+        let root = TempDir::new().unwrap();
+        new_team::scaffold_team("my-team", root.path()).unwrap();
+        let team_path = root.path().join("teams").join("my-team.md");
+        let content = fs::read_to_string(&team_path).unwrap();
+        assert!(
+            content.contains("scaffolded team prompt"),
+            "team file should contain no-op message, got: {content}"
+        );
+        assert!(
+            content.contains("Replace this file"),
+            "team file should tell user to replace it, got: {content}"
+        );
+    }
+
+    #[test]
+    fn test_run_new_team_scaffolds_agent_file_with_correct_content() {
+        let root = TempDir::new().unwrap();
+        new_team::scaffold_team("my-team", root.path()).unwrap();
+        let agent_path = root.path().join("agents").join("my-team").join("agent.md");
+        let content = fs::read_to_string(&agent_path).unwrap();
+        assert!(
+            content.contains("scaffolded agent definition"),
+            "agent file should contain no-op message, got: {content}"
+        );
+        assert!(
+            content.contains("Replace this file"),
+            "agent file should tell user to replace it, got: {content}"
+        );
+    }
+
+    #[test]
+    fn test_run_new_team_both_files_exist_at_expected_paths() {
+        let root = TempDir::new().unwrap();
+        let (team_path, agent_path) = new_team::scaffold_team("my-team", root.path()).unwrap();
+        assert!(team_path.exists(), "team file must exist");
+        assert!(agent_path.exists(), "agent file must exist");
+        assert_eq!(team_path, root.path().join("teams").join("my-team.md"));
+        assert_eq!(
+            agent_path,
+            root.path().join("agents").join("my-team").join("agent.md")
+        );
+    }
+
+    #[test]
+    fn test_run_new_team_second_call_fails_with_clear_error() {
+        // Running twice with same name should fail on second call
+        let root = TempDir::new().unwrap();
+        new_team::scaffold_team("my-team", root.path()).unwrap();
+        let result = new_team::scaffold_team("my-team", root.path());
+        assert!(result.is_err(), "second call should fail");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("already exists"),
+            "error should say 'already exists', got: {msg}"
+        );
     }
 }
