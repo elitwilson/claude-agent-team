@@ -4,6 +4,25 @@ use tempfile::TempDir;
 
 use super::*;
 
+// --- create_user_dirs ---
+
+#[test]
+fn test_create_user_dirs_creates_teams_and_agents() {
+    let base = TempDir::new().unwrap();
+    create_user_dirs(base.path()).unwrap();
+    assert!(base.path().join("user").join("teams").exists());
+    assert!(base.path().join("user").join("agents").exists());
+}
+
+#[test]
+fn test_create_user_dirs_is_idempotent() {
+    let base = TempDir::new().unwrap();
+    create_user_dirs(base.path()).unwrap();
+    create_user_dirs(base.path()).unwrap();
+    assert!(base.path().join("user").join("teams").exists());
+    assert!(base.path().join("user").join("agents").exists());
+}
+
 // --- link_rules ---
 
 #[test]

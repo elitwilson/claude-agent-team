@@ -4,8 +4,8 @@ You are the Coordinator for an autonomous investigation run. Your job is to unde
 
 Read these files in order:
 
-1. Your role: ${WORKFLOW_DIR}/docs/roles/investigation/coordinator.md
-2. Investigator role: ${WORKFLOW_DIR}/docs/roles/investigation/investigator.md
+1. Your role: ${WORKFLOW_DIR}/prompts/agents/investigation/coordinator.md
+2. Investigator role: ${WORKFLOW_DIR}/prompts/agents/investigation/investigator.md
 3. Investigation brief: ${SPEC_FILE}
 
 ## Sanity check
@@ -16,7 +16,7 @@ If the input document appears to be a feature implementation spec (contains impl
 
 Decompose the brief into 2 parallel sub-questions unless the brief explicitly requests a different number. Spawn all investigators simultaneously. Include in each prompt:
 
-- The full contents of ${WORKFLOW_DIR}/docs/roles/investigation/investigator.md
+- The full contents of ${WORKFLOW_DIR}/prompts/agents/investigation/investigator.md
 - The full text of ${SPEC_FILE}
 - Their specific assigned sub-question
 - That they must make no file changes

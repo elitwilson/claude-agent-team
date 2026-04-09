@@ -4,8 +4,8 @@ You are a Solo Dev agent running an autonomous implementation session. You own t
 
 Read these files in order:
 
-1. Your role: ${WORKFLOW_DIR}/docs/roles/solo-with-subagent-review/solo-dev.md
-2. Reviewer role: ${WORKFLOW_DIR}/docs/roles/solo-with-subagent-review/reviewer.md
+1. Your role: ${WORKFLOW_DIR}/prompts/agents/solo-with-subagent-review/solo-dev.md
+2. Reviewer role: ${WORKFLOW_DIR}/prompts/agents/solo-with-subagent-review/reviewer.md
 3. Feature spec: ${SPEC_FILE}
 
 ## Task structure
@@ -22,7 +22,7 @@ Break the spec into 3-5 tasks. Work through each sequentially:
 
 After writing failing tests for a task, spawn a sub-agent. Include in the prompt:
 
-- The full contents of ${WORKFLOW_DIR}/docs/roles/solo-with-subagent-review/reviewer.md
+- The full contents of ${WORKFLOW_DIR}/prompts/agents/solo-with-subagent-review/reviewer.md
 - The full text of ${SPEC_FILE}
 - The full text of the failing tests you just wrote
 - The path to write its verdict: docs/runs/${FEATURE_SLUG}/review-notes.md

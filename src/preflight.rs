@@ -7,20 +7,18 @@ pub fn build_branch_name(feature_slug: &str) -> String {
     format!("feature/{feature_slug}")
 }
 
-/// Run preflight checks: ensure clean working tree, checkout base branch, pull, create feature branch.
+/// Run preflight checks: ensure clean working tree, validate branches, create feature branch.
 pub fn run_preflight(base_branch: &str, feature_slug: &str) -> Result<String> {
     check_clean_working_tree()?;
 
     let branch_name = build_branch_name(feature_slug);
 
-    // Checkout base branch
+    check_branch_exists(base_branch)?;
+    check_branch_absent(&branch_name)?;
+
     run_git(&["checkout", base_branch])
         .with_context(|| format!("Failed to checkout {base_branch}"))?;
 
-    // Pull latest
-    run_git(&["pull"]).context("Failed to pull latest changes")?;
-
-    // Create and checkout feature branch
     run_git(&["checkout", "-b", &branch_name])
         .with_context(|| format!("Failed to create branch {branch_name}"))?;
 
@@ -38,6 +36,28 @@ pub fn check_clean_working_tree() -> Result<()> {
     let has_changes = stdout.lines().any(|l| !l.starts_with("??"));
     if has_changes {
         bail!("Working tree is not clean. Please commit or stash your changes first.");
+    }
+    Ok(())
+}
+
+fn check_branch_exists(branch: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", branch])
+        .output()
+        .context("Failed to check branch existence")?;
+    if !output.status.success() {
+        bail!("Base branch '{branch}' does not exist locally.");
+    }
+    Ok(())
+}
+
+fn check_branch_absent(branch: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", branch])
+        .output()
+        .context("Failed to check branch existence")?;
+    if output.status.success() {
+        bail!("Branch '{branch}' already exists. Did a previous run leave it behind?");
     }
     Ok(())
 }

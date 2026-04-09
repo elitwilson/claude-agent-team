@@ -16,7 +16,7 @@ The system is opinionated: every run is spec-driven (humans write the spec; agen
 
 ### Teams and prompts
 
-Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of role definitions (in `docs/roles/`). When you launch a run, `claude-launch` assembles and injects these prompts into the Claude session — the agents read their own role files at startup and coordinate from there.
+Each team is defined by an entry-point prompt (in `prompts/teams/`) and a set of agent definitions (in `prompts/agents/<team-name>/`). When you launch a run, `claude-launch` injects the team prompt into the Claude session — the lead agent reads its teammates' definitions at startup and coordinates from there.
 
 | Team | Agents | Workflow |
 |------|--------|---------|
@@ -27,7 +27,7 @@ Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of 
 
 ### Run lifecycle
 
-1. **Pre-flight** — validates clean git state, checks out base branch, pulls, creates `feature/<slug>-<YYYYMMDD>`
+1. **Pre-flight** — validates clean git state and that the base branch exists locally, checks out base branch, creates `feature/<slug>-<YYYYMMDD>`
 2. **Agent session** — the selected team reads the spec and its role definitions, then runs its workflow autonomously
 3. **Metrics** — token usage is parsed from Claude's JSONL logs and written to SQLite
 4. **Summary** — branch name and metrics status printed to stdout
@@ -41,8 +41,6 @@ Each team is defined by a coordinator prompt (in `prompts/teams/`) and a set of 
 | `docs/runs/<slug>/investigation-report.md` | Synthesized findings report (`investigation`) |
 | `logs/agent-runs/<slug>-<date>.log` | Full log (headless mode only) |
 | `~/.claude/claude-launch-metrics.db` | Token usage across all runs |
-
----
 
 ---
 
@@ -76,6 +74,13 @@ No action needed — this happens in the background before the TUI opens.
 ---
 
 ## Usage
+
+```
+claude-launch                  Launch the TUI
+claude-launch new-team         Scaffold a new custom team interactively
+claude-launch new-team <name>  Scaffold a new custom team with the given name
+claude-launch --help           Print usage
+```
 
 Run from within your target project directory:
 
@@ -118,17 +123,13 @@ To cancel a pending run, select the spec in the TUI (it shows the scheduled time
 
 ## Authentication
 
-`claude-launch` loads your Claude OAuth token from the macOS Keychain at run time and passes it to the agent session.
+By default, `claude-launch` uses whatever Claude account you're already logged into via the Claude Code CLI — no configuration needed. This applies to both interactive and scheduled runs.
+
+The Keychain integration is only needed if you want to switch between **multiple Claude accounts**.
 
 ### Single account
 
-Store one token under the default service name:
-
-```bash
-security add-generic-password -s claude-token-1 -a claude -w <your-token>
-```
-
-No further configuration needed — `claude-launch` will pick it up automatically.
+No setup required. `claude-launch` inherits your active Claude session automatically.
 
 ### Multiple accounts
 
@@ -173,6 +174,72 @@ security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 
 ---
 
+## Custom Teams
+
+The built-in teams cover common workflows, but you can define your own at two levels: user-level (available across all your projects) and project-level (scoped to one project).
+
+### Scaffolding a new team
+
+The easiest way to get started is the `new-team` command:
+
+```bash
+claude-launch new-team
+```
+
+It prompts for a name and level, creates the directory structure, and prints the files to edit. If you choose project-level and haven't set `custom_dir` in `.claude-launch.toml` yet, it sets a default (`custom-teams`) automatically.
+
+### Directory structure
+
+A custom team follows the same convention as the built-in ones: an entry-point prompt in `teams/` and optional agent definitions in `agents/<team-name>/`.
+
+**User-level** — available globally, created on first install:
+
+```
+~/.claude-launch/user/
+  teams/
+    my-team.md
+  agents/
+    my-team/
+      coder.md
+      reviewer.md
+```
+
+**Project-level** — scoped to the project, path set via `.claude-launch.toml`:
+
+```
+<project-root>/teams/        ← wherever custom_dir points
+  teams/
+    my-team.md
+  agents/
+    my-team/
+      coder.md
+```
+
+### Template variables
+
+Custom team prompts have two variables available for referencing their agent files:
+
+| Variable | Resolves to |
+|----------|-------------|
+| `${USER_DIR}` | `~/.claude-launch/user/` |
+| `${PROJECT_DIR}` | The resolved path of `custom_dir` in `.claude-launch.toml` |
+
+Example team prompt referencing a user-level agent:
+
+```
+Read your role: ${USER_DIR}/agents/my-team/coder.md
+```
+
+The built-in `${WORKFLOW_DIR}` variable is also available in all prompts and resolves to `~/.claude-launch/`.
+
+### Rules
+
+- Team names must be unique across built-in, user-level, and project-level sources. Any collision causes `claude-launch` to fail at startup with a clear error naming the conflict.
+- Built-in team names (`feature-dev`, `solo-dev`, `solo-with-subagent-review`, `investigation`) are effectively reserved.
+- The binary never modifies anything inside `~/.claude-launch/user/`.
+
+---
+
 ## Configuration
 
 `claude-launch` works with no config file — all defaults apply. To override, add a `.claude-launch.toml` to your target project root:
@@ -180,7 +247,7 @@ security add-generic-password -U -s com.claude-launch -a work -w <new-token>
 ```toml
 specs_dir = "docs/specs"       # default
 default_team = "feature-dev"   # default
-base_branch = "main"           # default
+custom_dir = "teams"           # optional — path to project-level custom teams (see Custom Teams)
 ```
 
 ---
@@ -206,8 +273,17 @@ Numbers are assigned in the order specs are created and are never reused.
 ---
 number: 001
 status: ready
+base_branch: main
 ---
 ```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `number` | No | Three-digit sequence number matching the filename prefix |
+| `status` | No | See status table below — defaults to `ready` if absent |
+| `base_branch` | Yes | The git branch to check out and branch from before the run |
+
+`base_branch` is required for any spec with a `ready` status. Specs missing it are shown as `blocked` in the TUI.
 
 | Status | Meaning | Shown in TUI |
 |--------|---------|--------------|
@@ -215,13 +291,11 @@ status: ready
 | `complete` | Run finished successfully | No (filterable) |
 | `blocked` | Needs human review before proceeding | No (filterable) |
 
-Specs with missing or unrecognized status are treated as `ready`.
-
-The agent team updates the spec's `status` at the end of each run: `complete` if all tasks finished, `blocked` if any did not or if human review is needed.
+The agent team updates `status` at the end of each run: `complete` if all tasks finished, `blocked` if any did not or if human review is needed.
 
 ### Writing a spec
 
-Copy `docs/spec-template.md` as your starting point. A spec should include:
+Copy `prompts/spec-template.md` as your starting point. A spec should include:
 
 - Summary
 - Requirements

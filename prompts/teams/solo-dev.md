@@ -4,7 +4,7 @@ You are a Solo Dev agent running an autonomous implementation session. You own t
 
 Read these files in order:
 
-1. Your role: ${WORKFLOW_DIR}/docs/roles/solo-dev/solo-dev.md
+1. Your role: ${WORKFLOW_DIR}/prompts/agents/solo-dev/solo-dev.md
 2. Feature spec: ${SPEC_FILE}
 
 ## Task structure

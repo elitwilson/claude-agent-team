@@ -67,6 +67,39 @@ base_branch = "develop"
     assert_eq!(config.specs_dir, "docs/specs");
 }
 
+// --- Config custom_dir tests ---
+
+#[test]
+fn test_load_custom_dir_absent_defaults_to_none() {
+    let dir = create_temp_dir();
+    let toml_content = r#"
+specs_dir = "docs/specs"
+default_team = "feature-dev"
+"#;
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
+    let config = Config::load(dir.path()).unwrap();
+    assert!(config.custom_dir.is_none());
+}
+
+#[test]
+fn test_load_custom_dir_parses_when_present() {
+    let dir = create_temp_dir();
+    let toml_content = r#"
+specs_dir = "docs/specs"
+custom_dir = "custom-teams"
+"#;
+    fs::write(dir.path().join(".claude-launch.toml"), toml_content).unwrap();
+    let config = Config::load(dir.path()).unwrap();
+    assert_eq!(config.custom_dir, Some("custom-teams".to_string()));
+}
+
+#[test]
+fn test_load_default_config_has_no_custom_dir() {
+    let dir = create_temp_dir();
+    let config = Config::load(dir.path()).unwrap();
+    assert!(config.custom_dir.is_none());
+}
+
 // --- Spec discovery tests ---
 
 #[test]
@@ -406,40 +439,157 @@ fn test_discover_specs_skips_binary_files() {
     assert_eq!(specs[0].name, "spec.md");
 }
 
-// --- Team discovery tests ---
+// --- Team discovery tests (new multi-source API) ---
 
 #[test]
-fn test_discover_teams_returns_names_without_extension() {
-    let dir = create_temp_dir();
-    fs::write(dir.path().join("feature-dev.md"), "# Team").unwrap();
-    fs::write(dir.path().join("review-only.md"), "# Team").unwrap();
+fn test_discover_teams_builtin_only() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    fs::write(builtin.path().join("feature-dev.md"), "# Team").unwrap();
 
-    let teams = discover_teams(dir.path()).unwrap();
-    assert_eq!(teams.len(), 2);
-    assert!(teams.contains(&"feature-dev".to_string()));
-    assert!(teams.contains(&"review-only".to_string()));
+    let teams = discover_teams(builtin.path(), user.path(), None).unwrap();
+    assert_eq!(teams.len(), 1);
+    assert_eq!(teams[0].name, "feature-dev");
+    assert!(matches!(teams[0].source, TeamSource::BuiltIn));
+    assert_eq!(teams[0].path, builtin.path().join("feature-dev.md"));
+}
+
+#[test]
+fn test_discover_teams_missing_user_dir_silently_skipped() {
+    let builtin = create_temp_dir();
+    fs::write(builtin.path().join("alpha.md"), "# Team").unwrap();
+    let nonexistent_user = Path::new("/nonexistent/user/teams/surely");
+
+    let teams = discover_teams(builtin.path(), nonexistent_user, None).unwrap();
+    assert_eq!(teams.len(), 1);
+    assert_eq!(teams[0].name, "alpha");
+}
+
+#[test]
+fn test_discover_teams_missing_builtin_dir_errors() {
+    let user = create_temp_dir();
+    let result = discover_teams(Path::new("/nonexistent/builtin/surely"), user.path(), None);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_discover_teams_configured_project_dir_missing_errors() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    let missing_project = Path::new("/nonexistent/project/teams/surely");
+
+    let result = discover_teams(builtin.path(), user.path(), Some(missing_project));
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.to_lowercase().contains("custom_dir") || msg.to_lowercase().contains("project"),
+        "error should mention project/custom_dir, got: {msg}"
+    );
+}
+
+#[test]
+fn test_discover_teams_collision_builtin_vs_user_errors() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    fs::write(builtin.path().join("clash.md"), "# Team").unwrap();
+    fs::write(user.path().join("clash.md"), "# Team").unwrap();
+
+    let result = discover_teams(builtin.path(), user.path(), None);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("clash"), "error should name the conflicting team, got: {msg}");
+}
+
+#[test]
+fn test_discover_teams_collision_builtin_vs_project_errors() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    let project = create_temp_dir();
+    fs::write(builtin.path().join("clash.md"), "# Team").unwrap();
+    fs::write(project.path().join("clash.md"), "# Team").unwrap();
+
+    let result = discover_teams(builtin.path(), user.path(), Some(project.path()));
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("clash"), "error should name the conflicting team, got: {msg}");
+}
+
+#[test]
+fn test_discover_teams_collision_user_vs_project_errors() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    let project = create_temp_dir();
+    fs::write(user.path().join("clash.md"), "# Team").unwrap();
+    fs::write(project.path().join("clash.md"), "# Team").unwrap();
+
+    let result = discover_teams(builtin.path(), user.path(), Some(project.path()));
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("clash"), "error should name the conflicting team, got: {msg}");
+}
+
+#[test]
+fn test_discover_teams_collision_error_lists_all_conflicting_names() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    fs::write(builtin.path().join("alpha.md"), "# Team").unwrap();
+    fs::write(builtin.path().join("beta.md"), "# Team").unwrap();
+    fs::write(user.path().join("alpha.md"), "# Team").unwrap();
+    fs::write(user.path().join("beta.md"), "# Team").unwrap();
+
+    let result = discover_teams(builtin.path(), user.path(), None);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("alpha"), "error should mention 'alpha', got: {msg}");
+    assert!(msg.contains("beta"), "error should mention 'beta', got: {msg}");
+}
+
+#[test]
+fn test_discover_teams_clean_merge_all_sources_sorted() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    let project = create_temp_dir();
+    fs::write(builtin.path().join("charlie.md"), "# Team").unwrap();
+    fs::write(user.path().join("alpha.md"), "# Team").unwrap();
+    fs::write(project.path().join("beta.md"), "# Team").unwrap();
+
+    let teams = discover_teams(builtin.path(), user.path(), Some(project.path())).unwrap();
+    assert_eq!(teams.len(), 3);
+    assert_eq!(teams[0].name, "alpha");
+    assert_eq!(teams[1].name, "beta");
+    assert_eq!(teams[2].name, "charlie");
+    assert!(matches!(teams[0].source, TeamSource::User));
+    assert!(matches!(teams[1].source, TeamSource::Project));
+    assert!(matches!(teams[2].source, TeamSource::BuiltIn));
 }
 
 #[test]
 fn test_discover_teams_skips_non_md_files() {
-    let dir = create_temp_dir();
-    fs::write(dir.path().join("feature-dev.md"), "# Team").unwrap();
-    fs::write(dir.path().join("notes.txt"), "not a team").unwrap();
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    fs::write(builtin.path().join("feature-dev.md"), "# Team").unwrap();
+    fs::write(builtin.path().join("notes.txt"), "not a team").unwrap();
 
-    let teams = discover_teams(dir.path()).unwrap();
+    let teams = discover_teams(builtin.path(), user.path(), None).unwrap();
     assert_eq!(teams.len(), 1);
-    assert_eq!(teams[0], "feature-dev");
+    assert_eq!(teams[0].name, "feature-dev");
 }
 
 #[test]
-fn test_discover_teams_returns_empty_for_empty_dir() {
-    let dir = create_temp_dir();
-    let teams = discover_teams(dir.path()).unwrap();
+fn test_discover_teams_returns_empty_for_empty_dirs() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    let teams = discover_teams(builtin.path(), user.path(), None).unwrap();
     assert!(teams.is_empty());
 }
 
 #[test]
-fn test_discover_teams_errors_on_nonexistent_dir() {
-    let result = discover_teams(Path::new("/nonexistent/path/surely"));
-    assert!(result.is_err());
+fn test_discover_teams_entry_path_is_absolute() {
+    let builtin = create_temp_dir();
+    let user = create_temp_dir();
+    fs::write(builtin.path().join("my-team.md"), "# Team").unwrap();
+
+    let teams = discover_teams(builtin.path(), user.path(), None).unwrap();
+    assert_eq!(teams.len(), 1);
+    assert!(teams[0].path.is_absolute());
 }
