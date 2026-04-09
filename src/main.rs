@@ -206,10 +206,15 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         .strip_suffix(".md")
         .unwrap_or(&run_args.spec)
         .to_string();
-    let spec_file_path = format!("{}/{}", config.specs_dir, run_args.spec);
+    let specs_dir = cwd.join(&config.specs_dir);
+    let spec_path = run_cmd::spec_path_for_slug(&run_args.spec, &specs_dir);
+    let spec_file_path = spec_path
+        .strip_prefix(&cwd)
+        .unwrap_or(&spec_path)
+        .to_string_lossy()
+        .into_owned();
 
     // Read base_branch from spec frontmatter (required field)
-    let spec_path = cwd.join(&config.specs_dir).join(&run_args.spec);
     let base_branch = config::read_base_branch(&spec_path).context("Failed to read base_branch from spec")?;
     eprintln!("[claude-launch] run_scheduled: base_branch={base_branch}");
 

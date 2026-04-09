@@ -146,6 +146,26 @@ fn test_account_flag_missing_value_returns_error() {
     assert!(parse_run_args(&input).is_err());
 }
 
+// --- spec_path_for_slug ---
+
+#[test]
+fn test_spec_path_for_slug_appends_md() {
+    let dir = std::path::Path::new("/tmp/specs");
+    assert_eq!(
+        spec_path_for_slug("005-my-feature", dir),
+        dir.join("005-my-feature.md"),
+    );
+}
+
+#[test]
+fn test_spec_path_for_slug_does_not_double_md() {
+    let dir = std::path::Path::new("/tmp/specs");
+    assert_eq!(
+        spec_path_for_slug("005-my-feature.md", dir),
+        dir.join("005-my-feature.md"),
+    );
+}
+
 // --- parse_run_args: --spec-hash flag ---
 
 #[test]

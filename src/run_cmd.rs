@@ -13,6 +13,12 @@ pub struct RunArgs {
     pub spec_hash: Option<String>,
 }
 
+/// Resolve the spec file path from a slug (with or without `.md` extension).
+pub fn spec_path_for_slug(slug: &str, specs_dir: &std::path::Path) -> std::path::PathBuf {
+    let slug = slug.strip_suffix(".md").unwrap_or(slug);
+    specs_dir.join(format!("{slug}.md"))
+}
+
 /// Parse `run` subcommand flags from an arg iterator.
 ///
 /// Expects args AFTER the `run` keyword has been consumed, e.g.:
