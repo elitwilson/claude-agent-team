@@ -29,8 +29,9 @@ Synthesize findings into `docs/runs/${FEATURE_SLUG}/investigation-report.md`. Th
 
 - Directly answer the central question from the brief
 - Include relevant file paths and line numbers from investigator findings
-- Note any conflicts or gaps between investigator findings
-- Flag anything that requires human follow-up
+- Note any conflicts or gaps between investigator findings — check whether conflicts stem from an Assumed claim before treating them as equally reliable
+- Include an "Unverified Assumptions" section listing every investigator finding labeled Assumed, flagged as requiring human verification before acting on it
+- Flag anything else that requires human follow-up
 
 ## Termination
 
