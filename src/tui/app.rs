@@ -271,6 +271,7 @@ pub const OPTIONS_ITEMS: usize = 3;
 pub enum SpecTab {
     Specs,
     Requirements,
+    Plan,
 }
 
 /// Whether the confirmed selection should run a team or draft a spec.
@@ -278,6 +279,7 @@ pub enum SpecTab {
 pub enum RunMode {
     TeamRun,
     DraftRun,
+    AutoPlan,
 }
 
 /// The result of the TUI session.
@@ -380,11 +382,12 @@ impl App {
         };
     }
 
-    /// Toggle between Specs and Requirements tabs.
+    /// Cycle between Specs, Requirements, and Plan tabs.
     pub fn switch_tab(&mut self) {
         self.active_tab = match self.active_tab {
             SpecTab::Specs => SpecTab::Requirements,
-            SpecTab::Requirements => SpecTab::Specs,
+            SpecTab::Requirements => SpecTab::Plan,
+            SpecTab::Plan => SpecTab::Specs,
         };
     }
 
@@ -404,6 +407,7 @@ impl App {
                 SpecTab::Requirements => {
                     self.requirements_index = self.requirements_index.saturating_sub(1);
                 }
+                SpecTab::Plan => {}
             },
             Panel::Options => {
                 self.options_index = self.options_index.saturating_sub(1);
@@ -432,6 +436,7 @@ impl App {
                         self.requirements_index += 1;
                     }
                 }
+                SpecTab::Plan => {}
             },
             Panel::Options => {
                 if self.options_index + 1 < OPTIONS_ITEMS {
@@ -500,6 +505,20 @@ impl App {
                     self.confirmed = true;
                 }
             }
+            SpecTab::Plan => {
+                let slug = "auto-plan";
+                if let Some(SpecRunInfo::Scheduled { team, at, .. }) = self.run_info.get(slug) {
+                    self.popup = Some(PopupAction::CancelDialog {
+                        spec_slug: slug.to_string(),
+                        team: team.clone(),
+                        at: *at,
+                    });
+                } else {
+                    self.popup = Some(PopupAction::ActionDialog {
+                        selected: ActionChoice::ExecuteNow,
+                    });
+                }
+            }
         }
     }
 
@@ -564,7 +583,10 @@ impl App {
                 selected_index: self.team_index,
             }),
             Some(PopupAction::ActionDialog { .. }) => {
-                if self.accounts.len() > 1 {
+                if self.active_tab == SpecTab::Plan {
+                    // Plan tab has no TeamDialog to restore — dismiss to None
+                    None
+                } else if self.accounts.len() > 1 {
                     Some(PopupAction::AccountDialog {
                         selected_index: self.account_index,
                     })
@@ -675,13 +697,18 @@ impl App {
     /// Confirm the schedule picker: schedule the run via launchd, update run_info, show status.
     pub fn confirm_picker(&mut self) {
         if let Some(dt) = self.picker.confirm() {
-            let visible = self.visible_specs();
-            if visible.is_empty() {
-                return;
-            }
-            let spec_name = visible[self.spec_index].name.clone();
-            let team = self.teams[self.team_index].clone();
-            let slug = spec_name.strip_suffix(".md").unwrap_or(&spec_name).to_string();
+            let (spec_name, slug, team) = if self.active_tab == SpecTab::Plan {
+                ("auto-plan".to_string(), "auto-plan".to_string(), String::new())
+            } else {
+                let visible = self.visible_specs();
+                if visible.is_empty() {
+                    return;
+                }
+                let name = visible[self.spec_index].name.clone();
+                let s = name.strip_suffix(".md").unwrap_or(&name).to_string();
+                let t = self.teams[self.team_index].clone();
+                (name, s, t)
+            };
             match scheduler::schedule_run(&slug, &team, true, &self.cwd, dt) {
                 Ok(scheduled) => {
                     self.run_info.insert(
@@ -759,6 +786,13 @@ impl App {
                 team: self.teams[self.team_index].clone(),
                 headless: self.prefs.headless,
                 mode: RunMode::DraftRun,
+                account,
+            }),
+            SpecTab::Plan => Some(TuiResult {
+                spec: String::new(),
+                team: String::new(),
+                headless: self.prefs.headless,
+                mode: RunMode::AutoPlan,
                 account,
             }),
         }

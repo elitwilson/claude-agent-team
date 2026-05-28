@@ -757,6 +757,8 @@ fn test_switch_tab_toggles_between_specs_and_requirements() {
     app.switch_tab();
     assert_eq!(app.active_tab, SpecTab::Requirements);
     app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Plan);
+    app.switch_tab();
     assert_eq!(app.active_tab, SpecTab::Specs);
 }
 
@@ -1112,6 +1114,84 @@ fn test_confirm_picker_on_success_returns_to_launcher_and_sets_status_message() 
     assert!(!app.confirmed);
     assert!(app.status_message.is_some());
     assert!(app.run_info.contains_key("feature-a"));
+}
+
+// --- Task 013: Plan tab ---
+
+#[test]
+fn test_switch_tab_cycles_specs_requirements_plan() {
+    let mut app = app_with_mixed_entries();
+    assert_eq!(app.active_tab, SpecTab::Specs);
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Requirements);
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Plan);
+    app.switch_tab();
+    assert_eq!(app.active_tab, SpecTab::Specs);
+}
+
+#[test]
+fn test_confirm_on_plan_tab_opens_action_dialog_directly() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    app.confirm();
+    assert!(matches!(app.popup, Some(PopupAction::ActionDialog { .. })));
+}
+
+#[test]
+fn test_confirm_on_plan_tab_does_not_open_team_dialog() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    app.confirm();
+    assert!(!matches!(app.popup, Some(PopupAction::TeamDialog { .. })));
+}
+
+#[test]
+fn test_result_on_plan_tab_returns_auto_plan_mode() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    app.confirm(); // ActionDialog
+    app.confirm_popup(); // ExecuteNow
+    let result = app.result().unwrap();
+    assert!(matches!(result.mode, RunMode::AutoPlan));
+}
+
+#[test]
+fn test_result_on_plan_tab_has_empty_spec_and_team() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    app.confirm();
+    app.confirm_popup(); // ExecuteNow
+    let result = app.result().unwrap();
+    assert_eq!(result.spec, "");
+    assert_eq!(result.team, "");
+}
+
+#[test]
+fn test_move_up_on_plan_tab_is_noop() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    let spec_index_before = app.spec_index;
+    app.move_up();
+    assert_eq!(app.spec_index, spec_index_before);
+}
+
+#[test]
+fn test_move_down_on_plan_tab_is_noop() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    let spec_index_before = app.spec_index;
+    app.move_down();
+    assert_eq!(app.spec_index, spec_index_before);
+}
+
+#[test]
+fn test_dismiss_action_dialog_on_plan_tab_returns_to_none() {
+    let mut app = sample_app();
+    app.active_tab = SpecTab::Plan;
+    app.confirm(); // ActionDialog directly
+    app.dismiss_popup(); // Esc on Plan tab ActionDialog -> None
+    assert!(app.popup.is_none());
 }
 
 // --- Task 009: AccountDialog popup chain ---

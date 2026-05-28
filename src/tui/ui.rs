@@ -269,7 +269,12 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
         } else {
             Span::raw(" Raw Inputs ")
         };
-        Line::from(vec![specs_label, Span::raw("|"), reqs_label])
+        let plan_label = if app.active_tab == SpecTab::Plan {
+            Span::styled(" Plan ", Style::default().add_modifier(Modifier::BOLD))
+        } else {
+            Span::raw(" Plan ")
+        };
+        Line::from(vec![specs_label, Span::raw("|"), reqs_label, Span::raw("|"), plan_label])
     };
     let spec_block = Block::default()
         .borders(Borders::ALL)
@@ -368,6 +373,11 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
                 f.render_stateful_widget(req_list, chunks[0], &mut req_state);
             }
         }
+        SpecTab::Plan => {
+            let text = "[Enter] Auto-plan — draft specs for all Open backlog items";
+            let p = Paragraph::new(text).block(spec_block);
+            f.render_widget(p, chunks[0]);
+        }
     }
 
     // --- Options panel ---
@@ -410,9 +420,10 @@ fn render(f: &mut ratatui::Frame, app: &mut App) {
             Style::default().fg(Color::Cyan),
         )))
     } else {
-        let footer_text = match app.focused_panel {
-            Panel::Spec => "  ↑↓ navigate  ←→ switch tab  Tab panel  Enter confirm  q quit",
-            Panel::Options => "  ↑↓ navigate  Space toggle  Tab panel  q quit",
+        let footer_text = match (app.focused_panel, app.active_tab) {
+            (Panel::Spec, SpecTab::Plan) => "  Enter: run/schedule  ←→ switch tab  Tab panel  q quit",
+            (Panel::Spec, _) => "  ↑↓ navigate  ←→ switch tab  Tab panel  Enter confirm  q quit",
+            (Panel::Options, _) => "  ↑↓ navigate  Space toggle  Tab panel  q quit",
         };
         Paragraph::new(Line::from(footer_text))
     };
