@@ -569,6 +569,47 @@ fn test_plist_excludes_spec_hash_when_none() {
     assert!(!xml.contains("--spec-hash"), "Expected --spec-hash to be absent");
 }
 
+// --- generate_plist_xml: auto-plan mode ---
+
+#[test]
+fn test_plist_auto_plan_uses_mode_flag_not_spec_team() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "auto-plan",
+        "",
+        true,
+        None,
+        None,
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.auto-plan.plist"),
+    )
+    .unwrap();
+    assert!(xml.contains("--mode"), "Expected --mode flag");
+    assert!(xml.contains("auto-plan"), "Expected auto-plan value");
+    assert!(!xml.contains("--spec"), "auto-plan plist must not include --spec");
+    assert!(!xml.contains("--team"), "auto-plan plist must not include --team");
+}
+
+#[test]
+fn test_plist_auto_plan_label_is_com_claude_launch_auto_plan() {
+    let scheduled_at = Local.with_ymd_and_hms(2026, 4, 15, 14, 30, 0).unwrap();
+    let xml = generate_plist_xml(
+        "auto-plan",
+        "",
+        false,
+        None,
+        None,
+        Path::new("/Users/test/project"),
+        scheduled_at,
+        Path::new("/usr/local/bin/claude-launch"),
+        Path::new("/Users/test/Library/LaunchAgents/com.claude-launch.auto-plan.plist"),
+    )
+    .unwrap();
+    assert!(xml.contains("com.claude-launch.auto-plan"), "Expected auto-plan label");
+}
+
 // --- parse_plist: --spec-hash extraction ---
 
 #[test]

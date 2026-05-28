@@ -50,21 +50,26 @@ pub fn generate_plist_xml(
         "        <string>-i</string>".to_string(),
         format!("        <string>{binary}</string>"),
         "        <string>run</string>".to_string(),
-        "        <string>--spec</string>".to_string(),
-        format!("        <string>{spec}</string>"),
-        "        <string>--team</string>".to_string(),
-        format!("        <string>{team}</string>"),
     ];
+    if spec == "auto-plan" {
+        program_args.push("        <string>--mode</string>".to_string());
+        program_args.push("        <string>auto-plan</string>".to_string());
+    } else {
+        program_args.push("        <string>--spec</string>".to_string());
+        program_args.push(format!("        <string>{spec}</string>"));
+        program_args.push("        <string>--team</string>".to_string());
+        program_args.push(format!("        <string>{team}</string>"));
+        if let Some(hash) = spec_hash {
+            program_args.push("        <string>--spec-hash</string>".to_string());
+            program_args.push(format!("        <string>{hash}</string>"));
+        }
+    }
     if headless {
         program_args.push("        <string>--headless</string>".to_string());
     }
     if let Some(label) = account {
         program_args.push("        <string>--account</string>".to_string());
         program_args.push(format!("        <string>{label}</string>"));
-    }
-    if let Some(hash) = spec_hash {
-        program_args.push("        <string>--spec-hash</string>".to_string());
-        program_args.push(format!("        <string>{hash}</string>"));
     }
     program_args.push("        <string>--cleanup-plist</string>".to_string());
     program_args.push(format!("        <string>{plist}</string>"));

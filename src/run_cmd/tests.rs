@@ -17,12 +17,13 @@ fn test_parse_all_flags() {
     ]);
     let result = parse_run_args(&input).unwrap();
     assert_eq!(result, RunArgs {
-        spec: "005-scheduled-runs.md".to_string(),
-        team: "feature-dev".to_string(),
+        spec: Some("005-scheduled-runs.md".to_string()),
+        team: Some("feature-dev".to_string()),
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/com.claude-launch.test.plist")),
         account: None,
         spec_hash: None,
+        mode: None,
     });
 }
 
@@ -34,12 +35,13 @@ fn test_parse_required_flags_only() {
     ]);
     let result = parse_run_args(&input).unwrap();
     assert_eq!(result, RunArgs {
-        spec: "my-spec.md".to_string(),
-        team: "my-team".to_string(),
+        spec: Some("my-spec.md".to_string()),
+        team: Some("my-team".to_string()),
         headless: false,
         cleanup_plist: None,
         account: None,
         spec_hash: None,
+        mode: None,
     });
 }
 
@@ -53,12 +55,13 @@ fn test_parse_flags_in_any_order() {
     ]);
     let result = parse_run_args(&input).unwrap();
     assert_eq!(result, RunArgs {
-        spec: "foo.md".to_string(),
-        team: "dev".to_string(),
+        spec: Some("foo.md".to_string()),
+        team: Some("dev".to_string()),
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
         account: None,
         spec_hash: None,
+        mode: None,
     });
 }
 
@@ -124,12 +127,13 @@ fn test_parse_account_flag_with_all_flags() {
     ]);
     let result = parse_run_args(&input).unwrap();
     assert_eq!(result, RunArgs {
-        spec: "foo.md".to_string(),
-        team: "dev".to_string(),
+        spec: Some("foo.md".to_string()),
+        team: Some("dev".to_string()),
         headless: true,
         cleanup_plist: Some(PathBuf::from("/tmp/test.plist")),
         account: Some("personal".to_string()),
         spec_hash: None,
+        mode: None,
     });
 }
 
@@ -190,4 +194,49 @@ fn test_spec_hash_defaults_to_none() {
 fn test_spec_hash_flag_missing_value_returns_error() {
     let input = args(&["--spec", "foo.md", "--team", "dev", "--spec-hash"]);
     assert!(parse_run_args(&input).is_err());
+}
+
+// --- parse_run_args: --mode flag ---
+
+#[test]
+fn test_parse_mode_auto_plan() {
+    let input = args(&["--mode", "auto-plan", "--headless", "--cleanup-plist", "/tmp/test.plist"]);
+    let result = parse_run_args(&input).unwrap();
+    assert_eq!(result.mode, Some("auto-plan".to_string()));
+    assert!(result.spec.is_none());
+    assert!(result.team.is_none());
+}
+
+#[test]
+fn test_mode_defaults_to_none() {
+    let input = args(&["--spec", "foo.md", "--team", "dev"]);
+    let result = parse_run_args(&input).unwrap();
+    assert!(result.mode.is_none());
+}
+
+#[test]
+fn test_mode_flag_missing_value_returns_error() {
+    let input = args(&["--mode"]);
+    assert!(parse_run_args(&input).is_err());
+}
+
+#[test]
+fn test_missing_spec_without_mode_returns_error() {
+    let input = args(&["--team", "dev"]);
+    assert!(parse_run_args(&input).is_err());
+}
+
+#[test]
+fn test_missing_team_without_mode_returns_error() {
+    let input = args(&["--spec", "foo.md"]);
+    assert!(parse_run_args(&input).is_err());
+}
+
+#[test]
+fn test_mode_auto_plan_allows_missing_spec_and_team() {
+    let input = args(&["--mode", "auto-plan"]);
+    let result = parse_run_args(&input).unwrap();
+    assert_eq!(result.mode, Some("auto-plan".to_string()));
+    assert!(result.spec.is_none());
+    assert!(result.team.is_none());
 }

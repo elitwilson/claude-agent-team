@@ -234,7 +234,6 @@ fn run() -> Result<()> {
 fn run_scheduled(args: &[String]) -> Result<()> {
     eprintln!("[claude-launch] run_scheduled: starting");
     let run_args = run_cmd::parse_run_args(args)?;
-    eprintln!("[claude-launch] run_scheduled: spec={} team={} headless={}", run_args.spec, run_args.team, run_args.headless);
 
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
     eprintln!("[claude-launch] run_scheduled: cwd={}", cwd.display());
@@ -243,16 +242,22 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     let workflow_dir = prompt::resolve_workflow_dir()?;
     eprintln!("[claude-launch] run_scheduled: workflow_dir={workflow_dir}");
 
+    // Auto-plan mode: skip preflight, load skill prompt, run directly
+    if run_args.mode.as_deref() == Some("auto-plan") {
+        return run_scheduled_auto_plan(&run_args, &cwd, &workflow_dir);
+    }
+
     let (user_dir, project_dir, project_teams_dir) =
         build_dirs(&workflow_dir, config.custom_dir.as_deref(), &cwd);
 
-    let feature_slug = run_args
-        .spec
-        .strip_suffix(".md")
-        .unwrap_or(&run_args.spec)
-        .to_string();
+    let spec = run_args.spec.as_deref().unwrap_or("");
+    let team = run_args.team.as_deref().unwrap_or("");
+
+    eprintln!("[claude-launch] run_scheduled: spec={spec} team={team} headless={}", run_args.headless);
+
+    let feature_slug = spec.strip_suffix(".md").unwrap_or(spec).to_string();
     let specs_dir = cwd.join(&config.specs_dir);
-    let spec_path = run_cmd::spec_path_for_slug(&run_args.spec, &specs_dir);
+    let spec_path = run_cmd::spec_path_for_slug(spec, &specs_dir);
     let spec_file_path = spec_path
         .strip_prefix(&cwd)
         .unwrap_or(&spec_path)
@@ -269,9 +274,8 @@ fn run_scheduled(args: &[String]) -> Result<()> {
             .context("Failed to hash spec file for integrity check")?;
         if actual_hash != *expected_hash {
             eprintln!(
-                "Error: Spec '{}' has changed since it was scheduled (hash mismatch). \
+                "Error: Spec '{spec}' has changed since it was scheduled (hash mismatch). \
                  Re-schedule to run the updated spec.",
-                run_args.spec
             );
             std::process::exit(1);
         }
@@ -293,14 +297,14 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         project_teams_dir.as_deref(),
     )
     .context("Failed to discover team files")?;
-    let team_entry = find_team_entry(&team_entries, &run_args.team)
-        .with_context(|| format!("Scheduled team '{}' not found in discovered entries", run_args.team))?;
+    let team_entry = find_team_entry(&team_entries, team)
+        .with_context(|| format!("Scheduled team '{team}' not found in discovered entries"))?;
     let rendered_prompt = prompt::render_prompt(
         &team_entry.path,
         &spec_file_path,
         &feature_slug,
         &workflow_dir,
-        &run_args.team,
+        team,
         &user_dir,
         &project_dir,
     )?;
@@ -330,7 +334,7 @@ fn run_scheduled(args: &[String]) -> Result<()> {
 
     collect_metrics(
         &cwd,
-        &run_args.team,
+        team,
         &feature_slug,
         &started_at,
         &completed_at,
@@ -342,6 +346,73 @@ fn run_scheduled(args: &[String]) -> Result<()> {
         scheduler::cleanup_plist(plist_path)
             .context("Fatal: Failed to clean up scheduled run plist")?;
     }
+
+    Ok(())
+}
+
+fn run_scheduled_auto_plan(
+    run_args: &run_cmd::RunArgs,
+    cwd: &std::path::Path,
+    workflow_dir: &str,
+) -> Result<()> {
+    eprintln!("[claude-launch] run_scheduled_auto_plan: starting");
+
+    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let skill_path = Path::new(&home)
+        .join(".claude")
+        .join("skills")
+        .join("auto-plan")
+        .join("SKILL.md");
+
+    if !skill_path.exists() {
+        eprintln!(
+            "Error: ~/.claude/skills/auto-plan/SKILL.md not found. \
+             Re-run claude-launch install to deploy the skill."
+        );
+        std::process::exit(1);
+    }
+
+    let rendered_prompt = std::fs::read_to_string(&skill_path)
+        .context("Failed to read auto-plan skill file")?;
+
+    let oauth_token = match &run_args.account {
+        Some(label) => accounts::load_token_for_account(label),
+        None => runner::load_oauth_token(),
+    };
+    if oauth_token.is_none() {
+        eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
+    }
+
+    let date = chrono::Local::now().format("%Y%m%d").to_string();
+    let log_path = runner::build_log_path("auto-plan", &date);
+
+    let started_at = Utc::now().to_rfc3339();
+
+    let exit_code = runner::run_claude(
+        &rendered_prompt,
+        run_args.headless,
+        &log_path,
+        oauth_token.as_deref(),
+    )?;
+
+    let completed_at = Utc::now().to_rfc3339();
+
+    collect_metrics(
+        cwd,
+        "auto-plan",
+        "auto-plan",
+        &started_at,
+        &completed_at,
+        exit_code,
+    );
+
+    // Self-cleanup: remove the plist if this was a scheduled invocation
+    if let Some(plist_path) = &run_args.cleanup_plist {
+        scheduler::cleanup_plist(plist_path)
+            .context("Fatal: Failed to clean up scheduled run plist")?;
+    }
+
+    let _ = workflow_dir; // used in non-auto-plan path only
 
     Ok(())
 }

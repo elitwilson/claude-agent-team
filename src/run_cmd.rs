@@ -5,12 +5,13 @@ use anyhow::Result;
 /// Parsed arguments for the `run` subcommand.
 #[derive(Debug, PartialEq)]
 pub struct RunArgs {
-    pub spec: String,
-    pub team: String,
+    pub spec: Option<String>,
+    pub team: Option<String>,
     pub headless: bool,
     pub cleanup_plist: Option<PathBuf>,
     pub account: Option<String>,
     pub spec_hash: Option<String>,
+    pub mode: Option<String>,
 }
 
 /// Resolve the spec file path from a slug (with or without `.md` extension).
@@ -30,6 +31,7 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
     let mut cleanup_plist: Option<PathBuf> = None;
     let mut account: Option<String> = None;
     let mut spec_hash: Option<String> = None;
+    let mut mode: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -64,6 +66,11 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
                 let val = args.get(i).filter(|v| !v.starts_with("--"));
                 spec_hash = Some(val.ok_or_else(|| anyhow::anyhow!("--spec-hash requires a value"))?.clone());
             }
+            "--mode" => {
+                i += 1;
+                let val = args.get(i).filter(|v| !v.starts_with("--"));
+                mode = Some(val.ok_or_else(|| anyhow::anyhow!("--mode requires a value"))?.clone());
+            }
             other => {
                 anyhow::bail!("Unknown flag: {other}");
             }
@@ -71,13 +78,25 @@ pub fn parse_run_args(args: &[String]) -> Result<RunArgs> {
         i += 1;
     }
 
+    let is_auto_plan = mode.as_deref() == Some("auto-plan");
+
+    if !is_auto_plan {
+        if spec.is_none() {
+            anyhow::bail!("--spec is required");
+        }
+        if team.is_none() {
+            anyhow::bail!("--team is required");
+        }
+    }
+
     Ok(RunArgs {
-        spec: spec.ok_or_else(|| anyhow::anyhow!("--spec is required"))?,
-        team: team.ok_or_else(|| anyhow::anyhow!("--team is required"))?,
+        spec,
+        team,
         headless,
         cleanup_plist,
         account,
         spec_hash,
+        mode,
     })
 }
 
