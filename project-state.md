@@ -6,7 +6,7 @@
 
 ## Overview
 
-`claude-launch` v1 is functionally complete. All core launcher features described in the vision are implemented: TUI spec browser, team picker, preflight, interactive/headless run modes, scheduled runs via launchd, metrics collection, multi-account support, and the `new-team` scaffold command. The project is now in v2 territory — the next significant work is the Auto-Plan tab (spec 013, ready to implement) and the Drafter agent (plan written, spec not yet started).
+`claude-launch` v1 is functionally complete. All core launcher features described in the vision are implemented: TUI spec browser, team picker, preflight, interactive/headless run modes, scheduled runs via launchd, metrics collection, multi-account support, and the `new-team` scaffold command. The project is now in v2 territory — the next significant work is the Auto-Plan tab (spec 013, ready to implement). The Drafter agent and related Raw Inputs / auto-chain features from the original v2 vision may be superseded by the auto-plan approach and are under review.
 
 ---
 
