@@ -115,6 +115,38 @@ fn run() -> Result<()> {
         }
     };
 
+    if selection.mode == RunMode::AutoPlan {
+        let home = std::env::var("HOME").context("HOME environment variable not set")?;
+        let skill_path = Path::new(&home)
+            .join(".claude")
+            .join("skills")
+            .join("auto-plan")
+            .join("SKILL.md");
+        let rendered_prompt = match load_skill_prompt(&skill_path) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        };
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        let log_path = runner::build_log_path("auto-plan", &date);
+        let oauth_token = match &selection.account {
+            Some(label) => accounts::load_token_for_account(label),
+            None => runner::load_oauth_token(),
+        };
+        if oauth_token.is_none() {
+            eprintln!("Warning: Could not load OAuth token from Keychain — proceeding without it.");
+        }
+        runner::run_claude(
+            &rendered_prompt,
+            selection.headless,
+            &log_path,
+            oauth_token.as_deref(),
+        )?;
+        return Ok(());
+    }
+
     if selection.mode == RunMode::DraftRun {
         let input_file = format!("{}/{}", config.specs_dir, selection.spec);
         let drafter_template = Path::new(&workflow_dir)
@@ -350,6 +382,18 @@ fn run_scheduled(args: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// Load the auto-plan skill prompt from the given path.
+/// Returns Err if the file doesn't exist or can't be read.
+pub fn load_skill_prompt(skill_path: &Path) -> Result<String> {
+    if !skill_path.exists() {
+        anyhow::bail!(
+            "~/.claude/skills/auto-plan/SKILL.md not found. \
+             Re-run claude-launch install to deploy the skill."
+        );
+    }
+    std::fs::read_to_string(skill_path).context("Failed to read auto-plan skill file")
+}
+
 fn run_scheduled_auto_plan(
     run_args: &run_cmd::RunArgs,
     cwd: &std::path::Path,
@@ -364,16 +408,13 @@ fn run_scheduled_auto_plan(
         .join("auto-plan")
         .join("SKILL.md");
 
-    if !skill_path.exists() {
-        eprintln!(
-            "Error: ~/.claude/skills/auto-plan/SKILL.md not found. \
-             Re-run claude-launch install to deploy the skill."
-        );
-        std::process::exit(1);
-    }
-
-    let rendered_prompt = std::fs::read_to_string(&skill_path)
-        .context("Failed to read auto-plan skill file")?;
+    let rendered_prompt = match load_skill_prompt(&skill_path) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
 
     let oauth_token = match &run_args.account {
         Some(label) => accounts::load_token_for_account(label),
@@ -535,6 +576,37 @@ mod tests {
             project_teams_dir,
             Some(PathBuf::from("/project/root/custom-teams/teams"))
         );
+    }
+
+    // --- load_skill_prompt ---
+
+    #[test]
+    fn test_load_skill_prompt_returns_content_when_file_exists() {
+        let dir = TempDir::new().unwrap();
+        let skill_path = dir.path().join("SKILL.md");
+        fs::write(&skill_path, "# auto-plan skill content").unwrap();
+
+        let content = load_skill_prompt(&skill_path).unwrap();
+        assert_eq!(content, "# auto-plan skill content");
+    }
+
+    #[test]
+    fn test_load_skill_prompt_errors_when_file_missing() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("SKILL.md");
+        let result = load_skill_prompt(&missing);
+        assert!(result.is_err());
+        let msg = format!("{}", result.unwrap_err());
+        assert!(msg.contains("SKILL.md") || msg.contains("install"), "Error should mention the skill file or install");
+    }
+
+    #[test]
+    fn test_load_skill_prompt_error_message_directs_to_install() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("SKILL.md");
+        let err = load_skill_prompt(&missing).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("install"), "Error message should direct user to run install");
     }
 
     // --- find_team_entry tests ---
