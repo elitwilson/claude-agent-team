@@ -125,3 +125,113 @@ fn register_hooks_preserves_existing_settings() {
         serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
     assert_eq!(settings["autoUpdaterStatus"], "disabled");
 }
+
+// --- install_skills ---
+
+fn make_workflow_dir_with_skill() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let skill_dir = dir.path().join("skills").join("auto-plan");
+    fs::create_dir_all(&skill_dir).unwrap();
+    fs::write(skill_dir.join("SKILL.md"), "# auto-plan skill content").unwrap();
+    dir
+}
+
+#[test]
+fn install_skills_copies_skill_to_claude_dir() {
+    let workflow_dir = make_workflow_dir_with_skill();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_skills(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    let dest = claude_dir.path().join("skills").join("auto-plan").join("SKILL.md");
+    assert!(dest.exists());
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "# auto-plan skill content");
+}
+
+#[test]
+fn install_skills_creates_destination_directory() {
+    let workflow_dir = make_workflow_dir_with_skill();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_skills(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    assert!(claude_dir.path().join("skills").join("auto-plan").is_dir());
+}
+
+#[test]
+fn install_skills_is_idempotent() {
+    let workflow_dir = make_workflow_dir_with_skill();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_skills(workflow_dir.path(), claude_dir.path()).unwrap();
+    // Run again with modified destination content — should overwrite
+    let dest = claude_dir.path().join("skills").join("auto-plan").join("SKILL.md");
+    fs::write(&dest, "modified content").unwrap();
+    install_skills(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "# auto-plan skill content");
+}
+
+// --- install_agents ---
+
+fn make_workflow_dir_with_agents() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let agents_dir = dir.path().join("agents");
+    fs::create_dir_all(&agents_dir).unwrap();
+    fs::write(agents_dir.join("architect.md"), "# architect agent").unwrap();
+    fs::write(agents_dir.join("project-scribe.md"), "# project-scribe agent").unwrap();
+    dir
+}
+
+#[test]
+fn install_agents_copies_all_agent_files() {
+    let workflow_dir = make_workflow_dir_with_agents();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_agents(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    assert!(claude_dir.path().join("agents").join("architect.md").exists());
+    assert!(claude_dir.path().join("agents").join("project-scribe.md").exists());
+}
+
+#[test]
+fn install_agents_creates_destination_directory() {
+    let workflow_dir = make_workflow_dir_with_agents();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_agents(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    assert!(claude_dir.path().join("agents").is_dir());
+}
+
+#[test]
+fn install_agents_is_idempotent() {
+    let workflow_dir = make_workflow_dir_with_agents();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_agents(workflow_dir.path(), claude_dir.path()).unwrap();
+    // Overwrite agent file and re-run — should restore original
+    let dest = claude_dir.path().join("agents").join("architect.md");
+    fs::write(&dest, "modified").unwrap();
+    install_agents(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    assert_eq!(fs::read_to_string(&dest).unwrap(), "# architect agent");
+}
+
+#[test]
+fn install_agents_preserves_content() {
+    let workflow_dir = make_workflow_dir_with_agents();
+    let claude_dir = TempDir::new().unwrap();
+
+    install_agents(workflow_dir.path(), claude_dir.path()).unwrap();
+
+    let architect = fs::read_to_string(
+        claude_dir.path().join("agents").join("architect.md")
+    ).unwrap();
+    assert_eq!(architect, "# architect agent");
+
+    let scribe = fs::read_to_string(
+        claude_dir.path().join("agents").join("project-scribe.md")
+    ).unwrap();
+    assert_eq!(scribe, "# project-scribe agent");
+}

@@ -6,6 +6,8 @@ use include_dir::{Dir, include_dir};
 static WORKFLOW_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/prompts");
 static RULES_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/rules");
 static HOOKS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/hooks");
+static SKILLS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/skills");
+static AGENTS_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/agents");
 
 /// Load a prompt template and substitute variables.
 pub fn render_prompt(
@@ -67,6 +69,8 @@ pub fn resolve_workflow_dir() -> Result<String> {
     extract_dir(&WORKFLOW_FILES, &workflow_dir.join("prompts"))?;
     extract_dir(&RULES_FILES, &workflow_dir.join("rules"))?;
     extract_dir(&HOOKS_FILES, &workflow_dir.join("hooks"))?;
+    extract_dir(&SKILLS_FILES, &workflow_dir.join("skills"))?;
+    extract_dir(&AGENTS_FILES, &workflow_dir.join("agents"))?;
     create_user_dirs(&workflow_dir)?;
 
     workflow_dir

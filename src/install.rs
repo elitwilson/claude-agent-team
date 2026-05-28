@@ -141,7 +141,46 @@ pub fn run_install() -> Result<()> {
     link_rules(&workflow_dir, &claude_dir)?;
     register_hooks(&workflow_dir, &settings_path)?;
     create_user_dirs(&workflow_dir)?;
+    install_skills(&workflow_dir, &claude_dir)?;
+    install_agents(&workflow_dir, &claude_dir)?;
     println!("\nInstall complete.");
+    Ok(())
+}
+
+/// Copy `<workflow_dir>/skills/auto-plan/SKILL.md` to `<claude_dir>/skills/auto-plan/SKILL.md`.
+/// Creates the destination directory if needed. Idempotent — overwrites existing.
+pub fn install_skills(workflow_dir: &Path, claude_dir: &Path) -> Result<()> {
+    let src = workflow_dir.join("skills").join("auto-plan").join("SKILL.md");
+    let dest_dir = claude_dir.join("skills").join("auto-plan");
+    std::fs::create_dir_all(&dest_dir).context("Failed to create ~/.claude/skills/auto-plan")?;
+    let dest = dest_dir.join("SKILL.md");
+    std::fs::copy(&src, &dest).with_context(|| {
+        format!("Failed to copy {} to {}", src.display(), dest.display())
+    })?;
+    println!("  installed skill: {}", dest.display());
+    Ok(())
+}
+
+/// Copy all `<workflow_dir>/agents/*.md` files to `<claude_dir>/agents/`.
+/// Creates the destination directory if needed. Idempotent — overwrites existing.
+pub fn install_agents(workflow_dir: &Path, claude_dir: &Path) -> Result<()> {
+    let src_dir = workflow_dir.join("agents");
+    let dest_dir = claude_dir.join("agents");
+    std::fs::create_dir_all(&dest_dir).context("Failed to create ~/.claude/agents")?;
+    for entry in std::fs::read_dir(&src_dir)
+        .with_context(|| format!("Failed to read agents directory: {}", src_dir.display()))?
+    {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str.ends_with(".md") {
+            let dest = dest_dir.join(&name);
+            std::fs::copy(entry.path(), &dest).with_context(|| {
+                format!("Failed to copy agent {} to {}", entry.path().display(), dest.display())
+            })?;
+            println!("  installed agent: {}", dest.display());
+        }
+    }
     Ok(())
 }
 
