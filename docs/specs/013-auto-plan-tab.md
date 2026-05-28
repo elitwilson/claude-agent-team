@@ -1,6 +1,6 @@
 ---
 number: 013
-status: ready
+status: complete
 base_branch: main
 ---
 
